@@ -32,3 +32,6 @@ fecha,paso,sentido,demora_min,cola_m,autos_cola_est,flujo_autos_h_est
 2026-11-05T23:52:01-03:00,Concordia – Salto,AR->UY,0.5,0,0,,,56.2,55.7,55.7,0.5,1.01
 2026-11-05T23:52:01-03:00,Prueba: Haneda → Tokio (Bayshore),prueba,0.0,0,0,,,51.2,52.0,52.0,-0.8,0.99
 2026-11-05T23:52:01-03:00,Prueba: Aeropuerto → MG Road (Bengaluru),prueba,8.4,0,0,,,53.4,56.1,45.0,-2.7,0.95
+2026-11-05T23:56:01-03:00,Colón – Paysandú,AR->UY,0.0,0,0,,,28.6,29.6,29.6,-1.1,0.96
+2026-11-05T23:56:01-03:00,Gualeguaychú – Fray Bentos,AR->UY,0.1,0,0,,,42.1,42.0,42.0,0.1,1.0
+2026-11-05T23:56:01-03:00,Concordia – Salto,AR->UY,0.5,0,0,,,56.2,55.7,55.7,0.5,1.01
