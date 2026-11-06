@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:,">
-<title>Pasos Entre Ríos → Uruguay · Demoras en vivo</title>
+<title>Pasos Entre Ríos ↔ Uruguay · Demoras en vivo</title>
 <style>
   .viz-root {
     color-scheme: light;
@@ -78,6 +78,21 @@
   .sec { font-size: 16px; margin: 22px 0 2px; }
   .sec-sub { color: var(--text-secondary); font-size: 13px; margin: 0 0 10px; }
   .tile.prueba { border-style: dashed; }
+  .seg { display: inline-flex; gap: 4px; margin-top: 12px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1); flex-wrap: wrap; }
+  .seg button { border: 0; background: transparent; color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 7px; cursor: pointer; }
+  .seg button[aria-selected="true"] { background: var(--text-primary); color: var(--surface-1); }
+  .tend { margin-top: 10px; font-size: 13px; color: var(--text-primary); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .tend small { color: var(--text-secondary); font-size: 12px; }
+  .cap { margin-top: 8px; font-size: 13px; }
+  .capbar { height: 6px; border-radius: 3px; background: var(--grid); margin-top: 4px; overflow: hidden; max-width: 320px; }
+  .capbar i { display: block; height: 100%; border-radius: 3px; }
+  .pron { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--grid); }
+  .pron-t { font-size: 13px; font-weight: 600; }
+  .pron-t small { font-weight: 400; color: var(--text-secondary); }
+  .pron svg { display: block; width: 100%; height: 56px; margin-top: 6px; }
+  .pron-x { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+  .pron-r { font-size: 12.5px; color: var(--text-secondary); margin-top: 4px; }
+  .pron-r b { color: var(--text-primary); }
   .maplink { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); text-decoration: none; font-size: 13px; font-weight: 600; }
   .maplink:hover { background: var(--grid); }
 
@@ -111,8 +126,12 @@
 <div class="wrap">
   <header>
     <div>
-      <h1>Pasos Entre Ríos → Uruguay</h1>
-      <div class="sub">Demora estimada para cruzar, sentido Argentina → Uruguay</div>
+      <h1>Pasos Entre Ríos ↔ Uruguay</h1>
+      <div class="sub" id="subtitulo">Demora estimada para cruzar</div>
+      <div class="seg" role="tablist" aria-label="Sentido">
+        <button role="tab" data-s="AR->UY" aria-selected="true">Ida · AR → UY</button>
+        <button role="tab" data-s="UY->AR" aria-selected="false">Vuelta · UY → AR</button>
+      </div>
     </div>
     <div class="live"><span class="dot" id="dot"></span><span id="updated">Cargando…</span></div>
   </header>
@@ -122,7 +141,7 @@
 
   <section class="card chart-card">
     <div class="chart-head">
-      <h2>Demora en las últimas 24 h (minutos)</h2>
+      <h2 id="chartTitle">Demora en las últimas 24 h (minutos)</h2>
       <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
         <div class="legend" id="legend"></div>
         <button class="btn" id="toggle">Ver tabla</button>
@@ -132,7 +151,7 @@
     <div class="table-wrap" id="tableWrap"></div>
   </section>
 
-  <p class="note">Estimaciones con el tráfico en tiempo real de TomTom. Demora = viaje ahora − viaje sin tráfico. “vs. normal” = viaje ahora − viaje habitual para ese día y hora, según el historial de TomTom; autos en fila ≈ largo de la cola ÷ 7 m; autos que cruzan por hora ≈ autos en fila ÷ demora (solo con fila de más de 200 m y 5 min; techo de 650/h según la capacidad informada del operativo en Colón–Paysandú); personas ≈ autos × 3. Son indicadores, no conteos oficiales. Se actualiza solo. Datos de tráfico © TomTom.</p>
+  <p class="note">Estimaciones con el tráfico en tiempo real de TomTom. Demora = viaje ahora − viaje sin tráfico. “vs. normal” = viaje ahora − viaje habitual para ese día y hora, según el historial de TomTom; autos en fila ≈ largo de la cola ÷ 7 m; autos que cruzan por hora ≈ autos en fila ÷ demora (solo con fila de más de 200 m y 5 min; techo de 650/h según la capacidad informada del operativo en Colón–Paysandú); personas ≈ autos × 3. Tendencia = cambio vs. la medición anterior. Pronóstico = demora habitual por hora según el historial de TomTom (no contempla eventos). Son indicadores, no conteos oficiales. Se actualiza solo. Datos de tráfico © TomTom.</p>
 </div>
 </div>
 
@@ -148,10 +167,14 @@ const RUTAS = {
   'Colón – Paysandú':           ['-32.2234,-58.1440', '-32.3171,-58.0807'],
   'Concordia – Salto':          ['-31.3929,-58.0209', '-31.3833,-57.9667'],
 };
-const linkMaps = p => RUTAS[p] ? `https://www.google.com/maps/dir/?api=1&origin=${RUTAS[p][0]}&destination=${RUTAS[p][1]}${RUTAS[p][2] ? '&waypoints=' + RUTAS[p][2] : ''}&travelmode=driving` : null;
+const linkMaps = p => { const r = RUTAS[p]; if (!r) return null; const [o, d] = SENTIDO === 'UY->AR' ? [r[1], r[0]] : [r[0], r[1]];
+  return `https://www.google.com/maps/dir/?api=1&origin=${o}&destination=${d}&travelmode=driving`; };
 const UMBRAL = { moderada: 5, alta: 20 };   // minutos
 const REFRESCO_MS = 30000;
-let DATA = null, pasos = [], pruebas = [];
+let DATA = null, PRON = null, pasos = [], pruebas = [], SENTIDO = 'AR->UY';
+const CAPACIDAD = 650;   // autos/h, techo según el operativo en Colón–Paysandú
+const sentidoDe = m => m.sentido || 'AR->UY';
+const nombreSentido = (p, sen) => sen === 'UY->AR' ? p.split(' – ').reverse().join(' → ') : p.replace(' – ', ' → ');
 
 const css = v => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(v).trim();
 const fmtHora = d => d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
@@ -192,23 +215,70 @@ function tarjeta(p, s, prueba = false) {
   const principal = p === PRINCIPAL;
   const tz = p.includes('Tokio') ? ['Asia/Tokyo', 'Tokio'] : p.includes('Bengaluru') ? ['Asia/Kolkata', 'Bengaluru'] : null;
   const horaLocal = tz ? new Date(u.fecha).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', timeZone: tz[0] }) + ' hora de ' + tz[1] : '';
-  const tag = principal ? '<div class="tag">Principal · visita del Papa sáb. 7</div>'
+  const tag = principal ? `<div class="tag">Principal · visita del Papa sáb. 7${SENTIDO === 'UY->AR' ? ' · vuelta' : ''}</div>`
             : prueba ? `<div class="tag">Prueba · medido a las ${horaLocal}</div>` : '';
   const ultimas = prueba ? `<div class="cruces"><small>Últimas mediciones (demora / vs. normal): ${s.slice(-6).map(m => `${fmtHora(m.t)} ${Math.round(m.demora_min)}′ / ${m.extra_habitual_min == null ? '—' : (m.extra_habitual_min > 0 ? '+' : '') + Math.round(m.extra_habitual_min) + '′'}`).join(' · ')}</small></div>` : '';
   return `<article class="card tile${principal ? ' principal' : ''}${prueba ? ' prueba' : ''}">
       ${tag}
-      <div class="tile-name"><span class="swatch" style="background:var(${prueba ? '--text-muted' : col(p)})"></span>${p}</div>
+      <div class="tile-name"><span class="swatch" style="background:var(${prueba ? '--text-muted' : col(p)})"></span>${prueba ? p : nombreSentido(p, SENTIDO)}</div>
       <div class="big">${Math.round(u.demora_min)}<small>min</small></div>
       <div class="status"><svg width="16" height="16" viewBox="0 0 16 16" style="color:var(${e.color})">${e.icon}</svg>${e.label}</div>
       ${comparacion(u)}
+      ${tendencia(s)}
       <div class="meta">
         <div>${prueba ? 'Tramos lentos' : 'Cola'}<b>${u.cola_m >= 1000 ? (u.cola_m/1000).toLocaleString('es-AR',{maximumFractionDigits:1}) + ' km' : fmtNum(u.cola_m) + ' m'}</b></div>
         ${prueba ? '' : `<div>Autos en fila<b>~${fmtNum(u.autos_cola_est)}</b></div>
         <div>Cruzan ahora<b>${u.flujo_autos_h_est ? '~' + fmtNum(u.flujo_autos_h_est) + ' autos/h' : 'sin fila'}</b></div>`}
       </div>
-      ${prueba ? ultimas : resumenCruces(p, s, u)}
+      ${prueba ? ultimas : resumenCruces(p, s, u) + capacidad(u) + pronostico(p)}
       ${linkMaps(p) ? `<a class="maplink" href="${linkMaps(p)}" target="_blank" rel="noopener">Ver en Google Maps ↗</a>` : ''}
       </article>`;
+}
+
+// Cambio respecto de la medición anterior
+function tendencia(s) {
+  if (!s || s.length < 2) return '';
+  const u = s[s.length - 1], a = s[s.length - 2];
+  const dt = Math.round((u.t - a.t) / 60000);
+  if (dt > 150) return '';
+  const dc = u.cola_m - a.cola_m, dd = u.demora_min - a.demora_min;
+  const sig = x => { const r = Math.round(x); return (r > 0 ? '+' : '') + (r === 0 ? '0' : r.toLocaleString('es-AR')); };
+  let txt, icon, color;
+  if (Math.abs(dd) < 1 && Math.abs(dc) < 100) { txt = 'Estable'; icon = '='; color = '--text-muted'; }
+  else if (dd > 0 || dc > 0) { txt = 'Empeorando'; icon = '▲'; color = '--critical'; }
+  else { txt = 'Mejorando'; icon = '▼'; color = '--good'; }
+  const ritmo = Math.abs(dc) >= 100 && dt > 0 ? ` · la fila ${dc > 0 ? 'crece' : 'baja'} ~${fmtNum(Math.round(Math.abs(dc) / dt * 15 / 50) * 50)} m cada 15 min` : '';
+  return `<div class="tend"><span style="color:var(${color})">${icon}</span><b>${txt}</b><small>${sig(dd)}′ de demora, ${sig(dc)} m de fila vs. ${fmtHora(a.t)}${ritmo}</small></div>`;
+}
+
+// Qué porcentaje de la capacidad del control se está usando
+function capacidad(u) {
+  if (!u.flujo_autos_h_est) return '';
+  const pct = Math.min(100, Math.round(u.flujo_autos_h_est / CAPACIDAD * 100));
+  const c = pct >= 90 ? '--critical' : pct >= 60 ? '--warning' : '--good';
+  return `<div class="cap">Control al <b>${pct}%</b> de su capacidad${pct >= 90 ? ' · <b>saturado</b>: la fila solo puede crecer' : ''}<div class="capbar"><i style="width:${pct}%;background:var(${c})"></i></div></div>`;
+}
+
+// Pronóstico habitual próximas 24 h (historial de TomTom, sin evento)
+function pronostico(p) {
+  if (!PRON) return '';
+  const serie = (PRON.series || []).find(x => x.paso === p && x.sentido === SENTIDO);
+  if (!serie || !serie.horas.length) return '';
+  const hs = serie.horas.filter(x => new Date(x.hora) > Date.now() - 3600e3);
+  if (!hs.length) return '';
+  const max = Math.max(5, ...hs.map(x => x.demora_habitual_min));
+  const n = hs.length, W = 100, gap = 0.6, bw = W / n - gap;
+  const fH = x => new Date(x.hora).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  const bars = hs.map((x, i) => {
+    const hgt = Math.max(1.5, x.demora_habitual_min / max * 52);
+    return `<rect x="${(i * (W / n)).toFixed(2)}" y="${(54 - hgt).toFixed(2)}" width="${bw.toFixed(2)}" height="${hgt.toFixed(2)}" rx="0.8" fill="var(${col(p)})"><title>${fH(x)}: +${x.demora_habitual_min.toLocaleString('es-AR')} min habitual</title></rect>`;
+  }).join('');
+  const lbl = `<div class="pron-x"><span>${fH(hs[0])}</span><span>${fH(hs[Math.floor(n / 2)])}</span><span>${fH(hs[n - 1])}</span></div>`;
+  const orden = [...hs].sort((a, b) => a.demora_habitual_min - b.demora_habitual_min);
+  const mejor = orden[0], peor = orden[orden.length - 1];
+  return `<div class="pron"><div class="pron-t">Pronóstico próximas ${n} h <small>· demora habitual por hora, sin contar el evento</small></div>
+    <svg viewBox="0 0 100 54" preserveAspectRatio="none" role="img" aria-label="Demora habitual por hora">${bars}</svg>${lbl}
+    <div class="pron-r">Mejor hora: <b>${fH(mejor)}</b> (+${Math.round(mejor.demora_habitual_min)}′) · Peor: <b>${fH(peor)}</b> (+${Math.round(peor.demora_habitual_min)}′)</div></div>`;
 }
 
 function estado(min) {
@@ -225,6 +295,7 @@ async function cargar() {
     const r = await fetch('datos.json?_=' + Date.now(), { cache: 'no-store' });
     if (!r.ok) throw new Error(r.status);
     DATA = await r.json();
+    try { const rp = await fetch('pronostico.json?_=' + Date.now(), { cache: 'no-store' }); PRON = rp.ok ? await rp.json() : null; } catch (e) { PRON = null; }
     pruebas = DATA.pruebas || [];
     pasos = (DATA.pasos || [...new Set(DATA.mediciones.map(m => m.paso))]).filter(p => !pruebas.includes(p));
     render();
@@ -237,7 +308,7 @@ async function cargar() {
 function porPaso() {
   const out = {};
   [...pasos, ...pruebas].forEach(p => out[p] = []);
-  DATA.mediciones.forEach(m => { if (out[m.paso]) out[m.paso].push({ ...m, t: new Date(m.fecha) }); });
+  DATA.mediciones.forEach(m => { if (out[m.paso] && sentidoDe(m) === SENTIDO) out[m.paso].push({ ...m, t: new Date(m.fecha) }); });
   Object.values(out).forEach(a => a.sort((x, y) => x.t - y.t));
   return out;
 }
@@ -249,6 +320,7 @@ function render() {
     return;
   }
   const series = porPaso();
+  document.getElementById('subtitulo').textContent = 'Demora estimada para cruzar, sentido ' + (SENTIDO === 'UY->AR' ? 'Uruguay → Argentina' : 'Argentina → Uruguay');
   const upd = new Date(DATA.actualizado);
   const mins = Math.round((Date.now() - upd) / 60000);
   document.getElementById('updated').textContent =
@@ -273,7 +345,7 @@ function dibujarGrafico(series) {
   box.querySelector('svg')?.remove();
   const W = box.clientWidth, H = box.clientHeight;
   const m = { t: 14, r: W < 560 ? 16 : 130, b: 28, l: 38 };
-  const all = DATA.mediciones.filter(m => pasos.includes(m.paso));
+  const all = DATA.mediciones.filter(m => pasos.includes(m.paso) && sentidoDe(m) === SENTIDO);
   if (!all.length) { return; }
   const t0 = Math.min(...all.map(d => +new Date(d.fecha))), t1 = Math.max(...all.map(d => +new Date(d.fecha)));
   const yMaxRaw = Math.max(UMBRAL.moderada * 2, ...all.map(d => d.demora_min));
@@ -355,7 +427,7 @@ function dibujarGrafico(series) {
 }
 
 function dibujarTabla() {
-  const filas = [...DATA.mediciones].sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 300);
+  const filas = DATA.mediciones.filter(m => sentidoDe(m) === SENTIDO).sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 300);
   document.getElementById('tableWrap').innerHTML = `<table><thead><tr>
     <th>Hora</th><th>Paso</th><th>Demora (min)</th><th>vs. normal</th><th>Cola (m)</th><th>Autos en fila</th><th>Cruzan (autos/h)</th></tr></thead><tbody>` +
     filas.map(f => `<tr><td>${fmtHora(new Date(f.fecha))}</td><td>${f.paso}</td><td>${f.demora_min.toLocaleString('es-AR')}</td><td>${f.extra_habitual_min == null ? '—' : (f.extra_habitual_min > 0 ? '+' : '') + f.extra_habitual_min.toLocaleString('es-AR') + ' min'}</td>
@@ -373,6 +445,12 @@ document.getElementById('toggle').addEventListener('click', e => {
 });
 let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => DATA && dibujarGrafico(porPaso()), 150); });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => DATA && render());
+
+document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+  SENTIDO = b.dataset.s;
+  document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-selected', x === b ? 'true' : 'false'));
+  if (DATA) render();
+}));
 
 cargar();
 setInterval(cargar, REFRESCO_MS);

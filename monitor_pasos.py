@@ -55,6 +55,13 @@ PASOS = {
 }
 PRUEBAS = set()   # rutas de prueba (se muestran aparte en el dashboard)
 
+# Sentidos que se miden. Los puntos de PASOS están en sentido AR->UY;
+# para UY->AR se recorren al revés.
+SENTIDOS = ["AR->UY", "UY->AR"]
+PRONOSTICO_PATH = "pronostico.json"
+PRONOSTICO_HORAS = 24          # horas hacia adelante
+PRONOSTICO_REFRESCO_H = 6      # se recalcula cada 6 h
+
 METROS_POR_AUTO = 7.0   # largo promedio auto + espacio en fila
 PERSONAS_POR_AUTO = 3.0 # ocupación promedio supuesta (para estimar personas)
 
@@ -88,10 +95,17 @@ def distancia_m(a, b):
     return 2 * R * math.asin(math.sqrt(h))
 
 
-def consultar(puntos, api_key):
-    """puntos: (origen, [intermedios...], destino) como (lat, lng)."""
+def puntos_de(nombre, sentido):
+    pts = PASOS[nombre]
+    return tuple(reversed(pts)) if sentido == "UY->AR" else pts
+
+
+def consultar(puntos, api_key, depart=None):
+    """puntos: (origen, [intermedios...], destino) como (lat, lng).
+    depart: hora de salida futura (ISO) para pedir el pronóstico habitual."""
     ruta = ":".join(f"{lat},{lng}" for lat, lng in puntos)
-    url = API_URL.format(puntos=ruta) + "?" + urllib.parse.urlencode({
+    extra = {"departAt": depart} if depart else {}
+    url = API_URL.format(puntos=ruta) + "?" + urllib.parse.urlencode({**extra,
         "key": api_key,
         "traffic": "true",
         "travelMode": "car",
@@ -185,13 +199,15 @@ def resultado(demora_min, cola_m, viaje_s=None, habitual_s=None, libre_s=None, p
 
 # ---------------------------------------------------------------- Modo demo
 
-def simular(nombre, cuando):
+def simular(nombre, cuando, sentido="AR->UY"):
     """Demora con forma diaria realista: picos a la mañana y fin de tarde."""
     base = {"Gualeguaychú – Fray Bentos": 18,
             "Colón – Paysandú": 9,
             "Concordia – Salto": 5}.get(nombre, 12)
     h = cuando.hour + cuando.minute / 60
     curva = (math.exp(-((h - 10) ** 2) / 6) + 0.8 * math.exp(-((h - 18) ** 2) / 5))
+    if sentido == "UY->AR":   # la vuelta, con el pico más tarde
+        curva = 0.7 * math.exp(-((h - 15) ** 2) / 6) + math.exp(-((h - 20) ** 2) / 4)
     demora = max(0.0, base * curva + random.gauss(0, base * 0.05))
     cola = demora * 55 + random.gauss(0, 30)
     libre = {"Gualeguaychú – Fray Bentos": 40, "Colón – Paysandú": 15,
@@ -225,6 +241,7 @@ def guardar(filas):
     datos["actualizado"] = filas[-1]["fecha"]
     datos["pasos"] = list(PASOS)
     datos["pruebas"] = sorted(PRUEBAS)
+    datos["sentidos"] = SENTIDOS
     tmp = JSON_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(datos, f, ensure_ascii=False)
@@ -234,32 +251,80 @@ def guardar(filas):
 def medir(api_key, demo=False, cuando=None, silencio=False):
     cuando = cuando or ahora()
     filas = []
-    for nombre, puntos in PASOS.items():
-        try:
-            if demo:
-                res = simular(nombre, cuando)
-            else:
-                time.sleep(0.5)   # TomTom permite pocas consultas por segundo
-                resp = consultar(puntos, api_key)
-                if os.environ.get("DEBUG_TOMTOM"):
-                    ruta = resp["routes"][0]
-                    secs = {}
-                    for sec in ruta.get("sections", []):
-                        k = sec.get("sectionType") + ":" + str(sec.get("simpleCategory", ""))
-                        secs[k] = secs.get(k, 0) + 1
-                    print("[debug]", nombre, json.dumps(ruta["summary"]), secs,
-                          "puntos:", sum(len(l.get("points", [])) for l in ruta.get("legs", [])))
-                res = analizar(resp, nombre)
-        except Exception as e:  # noqa: BLE001
-            print(f"[error] {nombre}: {e}", file=sys.stderr)
-            continue
-        filas.append({"fecha": cuando.isoformat(timespec="seconds"),
-                      "paso": nombre,
-                      "sentido": "prueba" if nombre in PRUEBAS else "AR->UY", **res})
-        if not silencio:
-            print(f"{cuando:%H:%M}  {nombre:28} demora {res['demora_min']:>5} min  "
-                  f"cola {res['cola_m']:>5} m  ~{res['autos_cola_est']} autos")
+    for nombre in PASOS:
+        for sentido in SENTIDOS:
+            try:
+                if demo:
+                    res = simular(nombre, cuando, sentido)
+                else:
+                    time.sleep(0.5)   # TomTom permite pocas consultas por segundo
+                    resp = consultar(puntos_de(nombre, sentido), api_key)
+                    if os.environ.get("DEBUG_TOMTOM"):
+                        ruta = resp["routes"][0]
+                        secs = {}
+                        for sec in ruta.get("sections", []):
+                            k = sec.get("sectionType") + ":" + str(sec.get("simpleCategory", ""))
+                            secs[k] = secs.get(k, 0) + 1
+                        print("[debug]", nombre, sentido, json.dumps(ruta["summary"]), secs)
+                    res = analizar(resp, nombre)
+            except Exception as e:  # noqa: BLE001
+                print(f"[error] {nombre} {sentido}: {e}", file=sys.stderr)
+                continue
+            filas.append({"fecha": cuando.isoformat(timespec="seconds"),
+                          "paso": nombre, "sentido": sentido, **res})
+            if not silencio:
+                print(f"{cuando:%H:%M}  {nombre:28} {sentido}  demora {res['demora_min']:>5} min  "
+                      f"cola {res['cola_m']:>5} m  ~{res['autos_cola_est']} autos")
     guardar(filas)
+
+
+def pronosticar(api_key, demo=False, forzar=False):
+    """Demora HABITUAL prevista para cada hora de las próximas 24 h, según el
+    historial de TomTom. No incluye eventos especiales (como la visita del Papa):
+    sirve de base para comparar con lo que pase en vivo."""
+    try:
+        with open(PRONOSTICO_PATH, encoding="utf-8") as f:
+            viejo = json.load(f)
+        edad_h = (ahora() - datetime.fromisoformat(viejo["generado"])).total_seconds() / 3600
+        if edad_h < PRONOSTICO_REFRESCO_H and not forzar and not demo:
+            return
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, ValueError):
+        pass
+
+    inicio = (ahora() + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+    horas = [inicio + timedelta(hours=i) for i in range(PRONOSTICO_HORAS)]
+    salida = {"generado": ahora().isoformat(timespec="seconds"), "series": []}
+    for nombre in PASOS:
+        for sentido in SENTIDOS:
+            puntos = []
+            for h in horas:
+                try:
+                    if demo:
+                        r = simular(nombre, h, sentido)
+                        libre, hab = r["libre_min"], r["habitual_min"]
+                    else:
+                        time.sleep(0.5)
+                        sm = consultar(puntos_de(nombre, sentido), api_key,
+                                       depart=h.isoformat(timespec="seconds"))["routes"][0]["summary"]
+                        libre = sm["noTrafficTravelTimeInSeconds"] / 60
+                        hab = sm["historicTrafficTravelTimeInSeconds"] / 60
+                except Exception as e:  # noqa: BLE001
+                    print(f"[error] pronóstico {nombre} {sentido} {h:%H}h: {e}", file=sys.stderr)
+                    continue
+                puntos.append({"hora": h.isoformat(timespec="minutes"),
+                               "habitual_min": round(hab, 1), "libre_min": round(libre, 1),
+                               "demora_habitual_min": round(max(0.0, hab - libre), 1)})
+            salida["series"].append({"paso": nombre, "sentido": sentido, "horas": puntos})
+            if puntos:
+                mejor = min(puntos, key=lambda x: x["demora_habitual_min"])
+                peor = max(puntos, key=lambda x: x["demora_habitual_min"])
+                print(f"pronóstico {nombre} {sentido}: mejor {mejor['hora'][11:16]} "
+                      f"(+{mejor['demora_habitual_min']}′), peor {peor['hora'][11:16]} "
+                      f"(+{peor['demora_habitual_min']}′)")
+    tmp = PRONOSTICO_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(salida, f, ensure_ascii=False)
+    os.replace(tmp, PRONOSTICO_PATH)
 
 
 # ---------------------------------------------------------------- Servidor web
@@ -301,6 +366,7 @@ def main():
 
     if a.una_vez:
         medir(key)
+        pronosticar(key)
         return
 
     if a.demo:
@@ -312,6 +378,7 @@ def main():
         while t < fin:
             medir(None, demo=True, cuando=t, silencio=True)
             t += timedelta(minutes=a.cada)
+        pronosticar(None, demo=True)
 
     servir(a.puerto)
     try:
