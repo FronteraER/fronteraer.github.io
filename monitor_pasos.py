@@ -43,7 +43,7 @@ AR = timezone(timedelta(hours=-3))   # hora de Argentina (sin horario de verano)
 def ahora():
     return datetime.now(AR)
 
-API_URL = "https://api.tomtom.com/routing/1/calculateRoute/{o}:{d}/json"
+API_URL = "https://api.tomtom.com/routing/1/calculateRoute/{puntos}/json"
 
 # Origen (lado argentino) y destino (lado uruguayo) como (lat, lng).
 # TomTom traza la ruta que cruza el puente. Para más precisión, mové el origen
@@ -52,7 +52,13 @@ PASOS = {
     "Colón – Paysandú":           ((-32.2234, -58.1440), (-32.3171, -58.0807)),
     "Gualeguaychú – Fray Bentos": ((-33.0094, -58.5172), (-33.1165, -58.3107)),
     "Concordia – Salto":          ((-31.3929, -58.0209), (-31.3833, -57.9667)),
+    # Ruta de PRUEBA para verificar que el sistema mide bien con tráfico real:
+    # aeropuerto de Haneda -> estación de Tokio, forzando la Bayshore Route
+    # (Shuto Wangan) con un punto intermedio en Ariake.
+    "Prueba: Haneda → Tokio (Bayshore)": ((35.5494, 139.7798), (35.6330, 139.7930),
+                                          (35.6812, 139.7671)),
 }
+PRUEBAS = {"Prueba: Haneda → Tokio (Bayshore)"}
 
 METROS_POR_AUTO = 7.0   # largo promedio auto + espacio en fila
 PERSONAS_POR_AUTO = 3.0 # ocupación promedio supuesta (para estimar personas)
@@ -87,9 +93,10 @@ def distancia_m(a, b):
     return 2 * R * math.asin(math.sqrt(h))
 
 
-def consultar(origen, destino, api_key):
-    fmt = lambda p: f"{p[0]},{p[1]}"
-    url = API_URL.format(o=fmt(origen), d=fmt(destino)) + "?" + urllib.parse.urlencode({
+def consultar(puntos, api_key):
+    """puntos: (origen, [intermedios...], destino) como (lat, lng)."""
+    ruta = ":".join(f"{lat},{lng}" for lat, lng in puntos)
+    url = API_URL.format(puntos=ruta) + "?" + urllib.parse.urlencode({
         "key": api_key,
         "traffic": "true",
         "travelMode": "car",
@@ -179,12 +186,13 @@ def simular(nombre, cuando):
     """Demora con forma diaria realista: picos a la mañana y fin de tarde."""
     base = {"Gualeguaychú – Fray Bentos": 18,
             "Colón – Paysandú": 9,
-            "Concordia – Salto": 5}[nombre]
+            "Concordia – Salto": 5}.get(nombre, 12)
     h = cuando.hour + cuando.minute / 60
     curva = (math.exp(-((h - 10) ** 2) / 6) + 0.8 * math.exp(-((h - 18) ** 2) / 5))
     demora = max(0.0, base * curva + random.gauss(0, base * 0.05))
     cola = demora * 55 + random.gauss(0, 30)
-    libre = {"Gualeguaychú – Fray Bentos": 40, "Colón – Paysandú": 15, "Concordia – Salto": 30}[nombre]
+    libre = {"Gualeguaychú – Fray Bentos": 40, "Colón – Paysandú": 15,
+             "Concordia – Salto": 30}.get(nombre, 25)
     habitual = libre + base * curva * 0.8
     return resultado(demora, max(0.0, cola), viaje_s=(libre + demora) * 60,
                      habitual_s=habitual * 60, libre_s=libre * 60, paso=nombre)
@@ -213,6 +221,7 @@ def guardar(filas):
     datos["mediciones"] = [m for m in datos["mediciones"] if m["fecha"] >= corte]
     datos["actualizado"] = filas[-1]["fecha"]
     datos["pasos"] = list(PASOS)
+    datos["pruebas"] = sorted(PRUEBAS)
     tmp = JSON_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(datos, f, ensure_ascii=False)
@@ -222,14 +231,15 @@ def guardar(filas):
 def medir(api_key, demo=False, cuando=None, silencio=False):
     cuando = cuando or ahora()
     filas = []
-    for nombre, (ar, uy) in PASOS.items():
+    for nombre, puntos in PASOS.items():
         try:
-            res = simular(nombre, cuando) if demo else analizar(consultar(ar, uy, api_key), nombre)
+            res = simular(nombre, cuando) if demo else analizar(consultar(puntos, api_key), nombre)
         except Exception as e:  # noqa: BLE001
             print(f"[error] {nombre}: {e}", file=sys.stderr)
             continue
         filas.append({"fecha": cuando.isoformat(timespec="seconds"),
-                      "paso": nombre, "sentido": "AR->UY", **res})
+                      "paso": nombre,
+                      "sentido": "prueba" if nombre in PRUEBAS else "AR->UY", **res})
         if not silencio:
             print(f"{cuando:%H:%M}  {nombre:28} demora {res['demora_min']:>5} min  "
                   f"cola {res['cola_m']:>5} m  ~{res['autos_cola_est']} autos")

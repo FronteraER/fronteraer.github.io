@@ -75,6 +75,9 @@
   .vs-up .vs-i { color: var(--critical); } .vs-down .vs-i { color: var(--good); } .vs-eq .vs-i { color: var(--text-muted); }
   .cruces { margin-top: 10px; font-size: 13.5px; color: var(--text-primary); }
   .cruces small { color: var(--text-secondary); font-size: 12px; }
+  .sec { font-size: 16px; margin: 22px 0 2px; }
+  .sec-sub { color: var(--text-secondary); font-size: 13px; margin: 0 0 10px; }
+  .tile.prueba { border-style: dashed; }
   .maplink { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); text-decoration: none; font-size: 13px; font-weight: 600; }
   .maplink:hover { background: var(--grid); }
 
@@ -115,6 +118,7 @@
   </header>
 
   <section class="tiles" id="tiles"></section>
+  <section id="pruebas"></section>
 
   <section class="card chart-card">
     <div class="chart-head">
@@ -143,11 +147,12 @@ const RUTAS = {
   'Gualeguaychú – Fray Bentos': ['-33.0094,-58.5172', '-33.1165,-58.3107'],
   'Colón – Paysandú':           ['-32.2234,-58.1440', '-32.3171,-58.0807'],
   'Concordia – Salto':          ['-31.3929,-58.0209', '-31.3833,-57.9667'],
+  'Prueba: Haneda → Tokio (Bayshore)': ['35.5494,139.7798', '35.6812,139.7671', '35.6330,139.7930'],
 };
-const linkMaps = p => RUTAS[p] ? `https://www.google.com/maps/dir/?api=1&origin=${RUTAS[p][0]}&destination=${RUTAS[p][1]}&travelmode=driving` : null;
+const linkMaps = p => RUTAS[p] ? `https://www.google.com/maps/dir/?api=1&origin=${RUTAS[p][0]}&destination=${RUTAS[p][1]}${RUTAS[p][2] ? '&waypoints=' + RUTAS[p][2] : ''}&travelmode=driving` : null;
 const UMBRAL = { moderada: 5, alta: 20 };   // minutos
 const REFRESCO_MS = 30000;
-let DATA = null, pasos = [];
+let DATA = null, pasos = [], pruebas = [];
 
 const css = v => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(v).trim();
 const fmtHora = d => d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
@@ -181,6 +186,31 @@ function comparacion(u) {
   return `<div class="vs vs-${peso}"><span class="vs-i">${icon}</span><span>${txt}<br><small>Viaje ahora ${fmtNum(u.viaje_min)} min · habitual ${fmtNum(u.habitual_min)} min · sin tráfico ${fmtNum(u.libre_min)} min</small></span></div>`;
 }
 
+function tarjeta(p, s, prueba = false) {
+  const u = s && s[s.length - 1];
+  if (!u) return '';
+  const e = estado(u.demora_min);
+  const principal = p === PRINCIPAL;
+  const horaTokio = new Date(u.fecha).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' });
+  const tag = principal ? '<div class="tag">Principal · visita del Papa sáb. 7</div>'
+            : prueba ? `<div class="tag">Prueba · medido a las ${horaTokio} hora de Tokio</div>` : '';
+  const ultimas = prueba ? `<div class="cruces"><small>Últimas mediciones (demora / vs. normal): ${s.slice(-6).map(m => `${fmtHora(m.t)} ${Math.round(m.demora_min)}′ / ${m.extra_habitual_min == null ? '—' : (m.extra_habitual_min > 0 ? '+' : '') + Math.round(m.extra_habitual_min) + '′'}`).join(' · ')}</small></div>` : '';
+  return `<article class="card tile${principal ? ' principal' : ''}${prueba ? ' prueba' : ''}">
+      ${tag}
+      <div class="tile-name"><span class="swatch" style="background:var(${prueba ? '--text-muted' : col(p)})"></span>${p}</div>
+      <div class="big">${Math.round(u.demora_min)}<small>min</small></div>
+      <div class="status"><svg width="16" height="16" viewBox="0 0 16 16" style="color:var(${e.color})">${e.icon}</svg>${e.label}</div>
+      ${comparacion(u)}
+      <div class="meta">
+        <div>${prueba ? 'Tramos lentos' : 'Cola'}<b>${u.cola_m >= 1000 ? (u.cola_m/1000).toLocaleString('es-AR',{maximumFractionDigits:1}) + ' km' : fmtNum(u.cola_m) + ' m'}</b></div>
+        ${prueba ? '' : `<div>Autos en fila<b>~${fmtNum(u.autos_cola_est)}</b></div>
+        <div>Cruzan ahora<b>${u.flujo_autos_h_est ? '~' + fmtNum(u.flujo_autos_h_est) + ' autos/h' : 'sin fila'}</b></div>`}
+      </div>
+      ${prueba ? ultimas : resumenCruces(p, s, u)}
+      ${linkMaps(p) ? `<a class="maplink" href="${linkMaps(p)}" target="_blank" rel="noopener">Ver en Google Maps ↗</a>` : ''}
+      </article>`;
+}
+
 function estado(min) {
   if (min >= UMBRAL.alta) return { label: 'Demora alta', color: '--critical',
     icon: '<path d="M8 1.5 15 14H1z" fill="currentColor"/><path d="M8 6v3.5M8 11.5v.5" stroke="var(--surface-1)" stroke-width="1.6" stroke-linecap="round"/>' };
@@ -195,7 +225,8 @@ async function cargar() {
     const r = await fetch('datos.json?_=' + Date.now(), { cache: 'no-store' });
     if (!r.ok) throw new Error(r.status);
     DATA = await r.json();
-    pasos = DATA.pasos || [...new Set(DATA.mediciones.map(m => m.paso))];
+    pruebas = DATA.pruebas || [];
+    pasos = (DATA.pasos || [...new Set(DATA.mediciones.map(m => m.paso))]).filter(p => !pruebas.includes(p));
     render();
   } catch (e) {
     document.getElementById('updated').textContent = 'Sin datos todavía — ¿está corriendo el script?';
@@ -205,7 +236,7 @@ async function cargar() {
 
 function porPaso() {
   const out = {};
-  pasos.forEach(p => out[p] = []);
+  [...pasos, ...pruebas].forEach(p => out[p] = []);
   DATA.mediciones.forEach(m => { if (out[m.paso]) out[m.paso].push({ ...m, t: new Date(m.fecha) }); });
   Object.values(out).forEach(a => a.sort((x, y) => x.t - y.t));
   return out;
@@ -225,26 +256,9 @@ function render() {
   document.getElementById('dot').classList.toggle('stale', mins > 90);
 
   // Tiles
-  document.getElementById('tiles').innerHTML = pasos.map((p, i) => {
-    const s = series[p], u = s[s.length - 1];
-    if (!u) return '';
-    const e = estado(u.demora_min);
-    const vs = comparacion(u);
-    return `<article class="card tile${p === PRINCIPAL ? ' principal' : ''}">
-      ${p === PRINCIPAL ? '<div class="tag">Principal · visita del Papa sáb. 7</div>' : ''}
-      <div class="tile-name"><span class="swatch" style="background:var(${col(p)})"></span>${p}</div>
-      <div class="big">${Math.round(u.demora_min)}<small>min</small></div>
-      <div class="status"><svg width="16" height="16" viewBox="0 0 16 16" style="color:var(${e.color})">${e.icon}</svg>${e.label}</div>
-      ${vs}
-      <div class="meta">
-        <div>Cola<b>${u.cola_m >= 1000 ? (u.cola_m/1000).toLocaleString('es-AR',{maximumFractionDigits:1}) + ' km' : fmtNum(u.cola_m) + ' m'}</b></div>
-        <div>Autos en fila<b>~${fmtNum(u.autos_cola_est)}</b></div>
-        <div>Cruzan ahora<b>${u.flujo_autos_h_est ? '~' + fmtNum(u.flujo_autos_h_est) + ' autos/h' : 'sin fila'}</b></div>
-      </div>
-      ${resumenCruces(p, s, u)}
-      ${linkMaps(p) ? `<a class="maplink" href="${linkMaps(p)}" target="_blank" rel="noopener">Ver en Google Maps ↗</a>` : ''}
-      </article>`;
-  }).join('');
+  document.getElementById('tiles').innerHTML = pasos.map(p => tarjeta(p, series[p])).join('');
+  const sp = document.getElementById('pruebas');
+  sp.innerHTML = pruebas.length ? `<h2 class="sec">Prueba del sistema</h2><p class="sec-sub">Ruta con tráfico real en otra zona horaria, para verificar que las mediciones responden. No forma parte del gráfico de los pasos.</p><div class="tiles">${pruebas.map(p => tarjeta(p, series[p], true)).join('')}</div>` : '';
 
   document.getElementById('legend').innerHTML = pasos.map((p, i) =>
     `<span><i style="background:var(${col(p)})"></i>${p}</span>`).join('');
@@ -259,7 +273,7 @@ function dibujarGrafico(series) {
   box.querySelector('svg')?.remove();
   const W = box.clientWidth, H = box.clientHeight;
   const m = { t: 14, r: W < 560 ? 16 : 130, b: 28, l: 38 };
-  const all = DATA.mediciones;
+  const all = DATA.mediciones.filter(m => pasos.includes(m.paso));
   if (!all.length) { return; }
   const t0 = Math.min(...all.map(d => +new Date(d.fecha))), t1 = Math.max(...all.map(d => +new Date(d.fecha)));
   const yMaxRaw = Math.max(UMBRAL.moderada * 2, ...all.map(d => d.demora_min));
