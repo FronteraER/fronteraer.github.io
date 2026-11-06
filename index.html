@@ -66,6 +66,8 @@
   .status svg { flex: none; }
   .meta { display: flex; gap: 18px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--grid); font-size: 13px; color: var(--text-secondary); }
   .meta b { display: block; font-size: 17px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .maplink { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); text-decoration: none; font-size: 13px; font-weight: 600; }
+  .maplink:hover { background: var(--grid); }
 
   .chart-card { padding: 18px 20px 12px; }
   .chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
@@ -123,6 +125,13 @@
 
 <script>
 const SERIES = ['--series-1', '--series-2', '--series-3'];
+// Mismos puntos que usa monitor_pasos.py, para comparar en Google Maps
+const RUTAS = {
+  'Gualeguaychú – Fray Bentos': ['-33.0094,-58.5172', '-33.1165,-58.3107'],
+  'Colón – Paysandú':           ['-32.2234,-58.1440', '-32.3171,-58.0807'],
+  'Concordia – Salto':          ['-31.3929,-58.0209', '-31.3833,-57.9667'],
+};
+const linkMaps = p => RUTAS[p] ? `https://www.google.com/maps/dir/?api=1&origin=${RUTAS[p][0]}&destination=${RUTAS[p][1]}&travelmode=driving` : null;
 const UMBRAL = { moderada: 5, alta: 20 };   // minutos
 const REFRESCO_MS = 30000;
 let DATA = null, pasos = [];
@@ -187,7 +196,9 @@ function render() {
         <div>Cola<b>${u.cola_m >= 1000 ? (u.cola_m/1000).toLocaleString('es-AR',{maximumFractionDigits:1}) + ' km' : fmtNum(u.cola_m) + ' m'}</b></div>
         <div>Autos en fila<b>~${fmtNum(u.autos_cola_est)}</b></div>
         <div>Flujo<b>${u.flujo_autos_h_est ? '~' + fmtNum(u.flujo_autos_h_est) + '/h' : '—'}</b></div>
-      </div></article>`;
+      </div>
+      ${linkMaps(p) ? `<a class="maplink" href="${linkMaps(p)}" target="_blank" rel="noopener">Ver en Google Maps ↗</a>` : ''}
+      </article>`;
   }).join('');
 
   document.getElementById('legend').innerHTML = pasos.map((p, i) =>
