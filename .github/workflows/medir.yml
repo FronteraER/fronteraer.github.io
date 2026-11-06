@@ -6,6 +6,9 @@ name: Medir pasos (continuo)
 # El cron de cada hora es solo un respaldo por si la cadena se corta.
 on:
   workflow_dispatch:
+  push:              # también arranca cuando se suben cambios de código
+    branches: [main]
+    paths: ["monitor_pasos.py", "index.html", ".github/workflows/**"]
   schedule:
     - cron: "7 * * * *"
 
