@@ -57,8 +57,11 @@ PASOS = {
     # (Shuto Wangan) con un punto intermedio en Ariake.
     "Prueba: Haneda → Tokio (Bayshore)": ((35.5494, 139.7798), (35.6330, 139.7930),
                                           (35.6812, 139.7671)),
+    # Segunda prueba, en una ciudad con mucha cobertura de tráfico de TomTom:
+    # aeropuerto de Bengaluru (India) -> MG Road, por la ruta del Hebbal.
+    "Prueba: Aeropuerto → MG Road (Bengaluru)": ((13.1986, 77.7066), (12.9756, 77.6050)),
 }
-PRUEBAS = {"Prueba: Haneda → Tokio (Bayshore)"}
+PRUEBAS = {"Prueba: Haneda → Tokio (Bayshore)", "Prueba: Aeropuerto → MG Road (Bengaluru)"}
 
 METROS_POR_AUTO = 7.0   # largo promedio auto + espacio en fila
 PERSONAS_POR_AUTO = 3.0 # ocupación promedio supuesta (para estimar personas)

@@ -148,6 +148,7 @@ const RUTAS = {
   'Colón – Paysandú':           ['-32.2234,-58.1440', '-32.3171,-58.0807'],
   'Concordia – Salto':          ['-31.3929,-58.0209', '-31.3833,-57.9667'],
   'Prueba: Haneda → Tokio (Bayshore)': ['35.5494,139.7798', '35.6812,139.7671', '35.6330,139.7930'],
+  'Prueba: Aeropuerto → MG Road (Bengaluru)': ['13.1986,77.7066', '12.9756,77.6050'],
 };
 const linkMaps = p => RUTAS[p] ? `https://www.google.com/maps/dir/?api=1&origin=${RUTAS[p][0]}&destination=${RUTAS[p][1]}${RUTAS[p][2] ? '&waypoints=' + RUTAS[p][2] : ''}&travelmode=driving` : null;
 const UMBRAL = { moderada: 5, alta: 20 };   // minutos
@@ -191,9 +192,10 @@ function tarjeta(p, s, prueba = false) {
   if (!u) return '';
   const e = estado(u.demora_min);
   const principal = p === PRINCIPAL;
-  const horaTokio = new Date(u.fecha).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' });
+  const tz = p.includes('Tokio') ? ['Asia/Tokyo', 'Tokio'] : p.includes('Bengaluru') ? ['Asia/Kolkata', 'Bengaluru'] : null;
+  const horaLocal = tz ? new Date(u.fecha).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', timeZone: tz[0] }) + ' hora de ' + tz[1] : '';
   const tag = principal ? '<div class="tag">Principal · visita del Papa sáb. 7</div>'
-            : prueba ? `<div class="tag">Prueba · medido a las ${horaTokio} hora de Tokio</div>` : '';
+            : prueba ? `<div class="tag">Prueba · medido a las ${horaLocal}</div>` : '';
   const ultimas = prueba ? `<div class="cruces"><small>Últimas mediciones (demora / vs. normal): ${s.slice(-6).map(m => `${fmtHora(m.t)} ${Math.round(m.demora_min)}′ / ${m.extra_habitual_min == null ? '—' : (m.extra_habitual_min > 0 ? '+' : '') + Math.round(m.extra_habitual_min) + '′'}`).join(' · ')}</small></div>` : '';
   return `<article class="card tile${principal ? ' principal' : ''}${prueba ? ' prueba' : ''}">
       ${tag}
