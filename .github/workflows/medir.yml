@@ -1,18 +1,17 @@
-name: Medir pasos y publicar
+name: Medir pasos (continuo)
 
+# GitHub no garantiza los horarios programados (de noche salteó casi todos),
+# así que este workflow queda corriendo y mide él mismo cada 15 minutos.
+# Un job puede durar hasta 6 h: a las 5 h 30 min se relanza solo.
+# El cron de cada hora es solo un respaldo por si la cadena se corta.
 on:
+  workflow_dispatch:
   schedule:
-    - cron: "7 * * * *"   # una vez por hora (minuto 7, para evitar la congestión de GitHub en punto)
-    # Visita del Papa: cada 15 min del 6 al 8 de noviembre (hora UTC; abarca
-    # desde el jueves 5 a las 21 h hasta el domingo 8 a las 21 h de Argentina).
-    # Borrar esta línea después del evento.
-    - cron: "2,17,32,47 * 6-8 11 *"
-  workflow_dispatch:          # botón "Run workflow" para correrlo a mano
+    - cron: "7 * * * *"
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
+  actions: write     # para lanzar la publicación y relanzarse
 
 concurrency:
   group: medir
@@ -21,9 +20,7 @@ concurrency:
 jobs:
   medir:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -31,27 +28,24 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Medir
+      - name: Medir cada 15 min (cada hora después del evento)
         env:
           TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
-          DEBUG_TOMTOM: "1"   # imprime en el log lo que responde TomTom (sin la clave)
-        run: python3 monitor_pasos.py --una-vez
-
-      - name: Guardar datos en el repo
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for f in datos.json pasos.csv; do [ -f "$f" ] && git add "$f"; done
-          git commit -m "Medición $(TZ=America/Argentina/Buenos_Aires date '+%Y-%m-%d %H:%M')" || echo "Sin cambios"
-          git pull --rebase
-          git push
-
-      - name: Preparar sitio
-        run: mkdir -p _site && cp index.html datos.json _site/
-
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-      - id: deploy
-        uses: actions/deploy-pages@v4
+          FIN=$(( $(date +%s) + 5*3600 + 30*60 ))
+          FIN_EVENTO=$(date -d '2026-11-09T00:00:00-03:00' +%s)
+          while :; do
+            python3 monitor_pasos.py --una-vez || echo "La medición falló; sigo"
+            for f in datos.json pasos.csv; do [ -f "$f" ] && git add "$f"; done
+            git commit -q -m "Medición $(TZ=America/Argentina/Buenos_Aires date '+%Y-%m-%d %H:%M')" || true
+            git pull -q --rebase && git push -q || echo "No se pudo subir; reintento en la próxima"
+            gh workflow run publicar.yml --ref main || echo "No se pudo lanzar la publicación"
+            if [ $(date +%s) -lt $FIN_EVENTO ]; then INT=900; else INT=3600; fi
+            PROX=$(( ( $(date +%s) / INT + 1 ) * INT ))
+            [ $PROX -ge $FIN ] && break
+            sleep $(( PROX - $(date +%s) ))
+          done
+          gh workflow run medir.yml --ref main
