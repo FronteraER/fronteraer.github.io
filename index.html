@@ -172,7 +172,7 @@ function render() {
   const mins = Math.round((Date.now() - upd) / 60000);
   document.getElementById('updated').textContent =
     `Actualizado ${fmtHora(upd)}` + (mins >= 1 ? ` · hace ${mins} min` : ' · recién');
-  document.getElementById('dot').classList.toggle('stale', mins > 30);
+  document.getElementById('dot').classList.toggle('stale', mins > 90);
 
   // Tiles
   document.getElementById('tiles').innerHTML = pasos.map((p, i) => {

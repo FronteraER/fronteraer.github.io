@@ -2,7 +2,7 @@ name: Medir pasos y publicar
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # cada 10 min: ~13.000 consultas/mes, dentro de las 20.000 gratis de TomTom
+    - cron: "7 * * * *"   # una vez por hora (minuto 7, para evitar la congestión de GitHub en punto)
   workflow_dispatch:          # botón "Run workflow" para correrlo a mano
 
 permissions:
