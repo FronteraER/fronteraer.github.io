@@ -103,6 +103,7 @@
   .pron-x { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 3px; }
   .pron-r { font-size: 12.5px; color: var(--text-secondary); margin-top: 4px; }
   .pron-r b { color: var(--text-primary); }
+  .autos { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--page); }
   .map-card { padding: 18px 20px 14px; margin-bottom: 14px; }
   #map { height: 380px; border-radius: 10px; margin-top: 8px; background: var(--grid); z-index: 0; }
   @media (max-width: 640px) { #map { height: 320px; } }
@@ -186,7 +187,7 @@
     <div class="table-wrap" id="tableWrap"></div>
   </section>
 
-  <p class="note">Estimaciones con el tráfico en tiempo real de TomTom. Demora = viaje ahora − viaje sin tráfico. “vs. normal” = viaje ahora − viaje habitual para ese día y hora, según el historial de TomTom; autos en fila ≈ largo de la cola ÷ 7 m; autos que cruzan por hora ≈ autos en fila ÷ demora (solo con fila de más de 200 m y 5 min; techo de 650/h según la capacidad informada del operativo en Colón–Paysandú); personas ≈ autos × 3. Tendencia = cambio vs. la medición anterior. Saturación = autos que cruzan por hora ÷ 650 (capacidad informada del control); 100% si además la fila crece. Rutas a Córdoba y Luján: congestión = cuánto más tarda el viaje que con la ruta libre (100% = el doble). Son indicadores, no conteos oficiales. Se actualiza solo. Datos de tráfico © TomTom.</p>
+  <p class="note">Estimaciones con el tráfico en tiempo real de TomTom. Demora = viaje ahora − viaje sin tráfico. “vs. normal” = viaje ahora − viaje habitual para ese día y hora, según el historial de TomTom; autos en fila ≈ largo de la cola ÷ 7 m; autos que cruzan por hora ≈ autos en fila ÷ demora (solo con fila de más de 200 m y 5 min; techo de 650/h según la capacidad informada del operativo en Colón–Paysandú); personas ≈ autos × 3. Tendencia = cambio vs. la medición anterior. Saturación = autos que cruzan por hora ÷ 650 (capacidad informada del control); 100% si además la fila crece. Rutas a Córdoba y Luján: congestión = cuánto más tarda el viaje que con la ruta libre (100% = el doble). Autos por hora = con fila, autos en fila ÷ espera; con la ruta embotellada o mucho más lenta que lo normal, 70–90% de su capacidad (carriles × autos por carril); sin congestión, el TMDA 2017 de Vialidad Nacional × la proporción típica de esa hora ÷ 2 sentidos. Personas ≈ autos × 1,5 en un día normal y × 3 con congestión o fila (grupos de peregrinos). Son indicadores, no conteos oficiales. Se actualiza solo. Datos de tráfico © TomTom.</p>
 </div>
 </div>
 
@@ -262,12 +263,14 @@ function tarjeta(p, s, prueba = false) {
     : `<div>Cola<b>${km(u.cola_m)}</b></div>
        <div>Autos en fila<b>~${fmtNum(u.autos_cola_est)}</b></div>
        <div>Cruzan ahora<b>${u.flujo_autos_h_est ? '~' + fmtNum(u.flujo_autos_h_est) + ' autos/h' : 'sin fila'}</b></div>`;
+  const autos = bloqueAutos(p, u);
   return `<article class="card tile${principal ? ' principal' : ''}">
       ${tag}
       <div class="tile-name"><span class="swatch" style="background:var(${col(p)})"></span>${nombreSentido(p, SENTIDO)}${ruta && u.largo_km ? ` <small style="font-weight:400;color:var(--text-muted)">· ${fmtNum(Math.round(u.largo_km))} km</small>` : ''}</div>
       <div class="big">${Math.round(u.demora_min)}<small>min</small></div>
       <div class="status"><svg width="16" height="16" viewBox="0 0 16 16" style="color:var(${e.color})">${e.icon}</svg>${e.label}</div>
       ${ruta ? congestion(u) : saturacion(s, u)}
+      ${autos}
       ${comparacion(u)}
       ${tendencia(s)}
       <div class="meta">${meta}</div>
@@ -278,6 +281,54 @@ function tarjeta(p, s, prueba = false) {
 
 // Congestión de una ruta: cuánto más tarda el viaje que sin tráfico.
 // 0% = ruta libre; 100% = el viaje tarda el doble (o más).
+// ---------------------------------------------------------------- Autos por hora
+// Perfil típico de tránsito por hora en rutas (fracción del total del día).
+const PERFIL_HORA = [0.012,0.008,0.006,0.005,0.007,0.014,0.030,0.055,0.068,0.060,0.056,0.057,
+                     0.058,0.055,0.054,0.058,0.064,0.072,0.075,0.066,0.050,0.038,0.029,0.019];
+// Carriles por sentido y capacidad por carril (autos/h) de cada ruta.
+const VIAS = {
+  'RN 9 sur · desde Oncativo':        [2, 1900, 'autopista'],
+  'RN 19 · desde Río Primero':        [2, 1700, 'autovía'],
+  'RN 9 norte · desde Jesús María':   [2, 1900, 'autopista'],
+  'RN 20 · desde Villa Carlos Paz':   [2, 1900, 'autopista'],
+  'RN 36 · desde Almafuerte':         [2, 1700, 'autovía'],
+  'Acceso Oeste · desde Liniers':     [3, 2000, 'autopista'],
+  'RN 8 / RP 6 · desde Pilar':        [2, 1700, 'autovía'],
+  'RN 5 · desde Mercedes':            [2, 1700, 'autovía'],
+  'RN 7 · desde San Andrés de Giles': [2, 1700, 'autovía'],
+  'RP 6 · desde Cañuelas':            [2, 1700, 'autovía'],
+};
+let TMDA = null;
+// Autos por hora en el sentido medido:
+// - pasos con fila: autos en fila ÷ espera (ya calculado en el script)
+// - rutas embotelladas o mucho más lentas que lo normal: cerca de su capacidad
+// - sin congestión: promedio de Vialidad (TMDA) × perfil de esa hora ÷ 2 sentidos
+function autosHora(p, u) {
+  const ruta = grupoDe(p) !== 'uruguay';
+  const cap = ruta ? (VIAS[p] ? VIAS[p][0] * VIAS[p][1] : null) : CAPACIDAD;
+  const t = TMDA && TMDA[p] ? TMDA[p].tmda : null;
+  const base = t ? t * PERFIL_HORA[new Date(u.fecha).getHours()] / 2 : null;
+  if (!ruta && u.flujo_autos_h_est) return { autos: u.flujo_autos_h_est, cap, fuente: 'según la fila y la espera' };
+  if (ruta && cap) {
+    // Se compara contra lo NORMAL para esa hora: una ruta que siempre va algo
+    // lenta a esta hora no está "llena"; sí lo está si va mucho peor que siempre.
+    const ix = u.indice_habitual || 1;
+    if (u.cola_m >= 200 || ix >= 1.3) return { autos: Math.round(Math.max(base || 0, cap * 0.9)), cap, fuente: 'mucho más lenta que lo normal: cerca de su capacidad' };
+    if (ix >= 1.12) return { autos: Math.round(Math.max(base || 0, cap * 0.7)), cap, fuente: 'más lenta que lo normal: ~70% de su capacidad' };
+  }
+  if (base) return { autos: Math.round(base), cap, fuente: 'promedio de Vialidad para esta hora (día normal, 2017)' };
+  return { autos: null, cap, fuente: 'sin dato de Vialidad (ruta provincial)' };
+}
+function bloqueAutos(p, u) {
+  const a = autosHora(p, u);
+  if (a.autos == null) return `<div class="autos"><div class="sat-h"><span>Autos por hora</span><b>—</b></div><div class="sat-n">${a.fuente}</div></div>`;
+  const redondeo = a.autos >= 1000 ? 50 : 10;
+  const n = Math.max(redondeo, Math.round(a.autos / redondeo) * redondeo);
+  const pct = a.cap ? Math.min(100, Math.round(a.autos / a.cap * 100)) : null;
+  return `<div class="autos"><div class="sat-h"><span>Autos por hora (estimado)</span><b>~${fmtNum(n)}/h${pct != null ? ` · ${pct}% de la capacidad` : ''}</b></div>
+    <div class="sat-n">${a.fuente}${a.cap ? ` · capacidad ~${fmtNum(a.cap)}/h` : ''} · ~${fmtNum(Math.round(n * (a.fuente.startsWith('promedio') ? 1.5 : 3) / 10) * 10)} personas/h</div></div>`;
+}
+
 function congestion(u) {
   if (!u.viaje_min || !u.libre_min) return '';
   const pct = Math.max(0, Math.min(100, Math.round((u.viaje_min / u.libre_min - 1) * 100)));
@@ -431,6 +482,7 @@ async function cargar() {
     if (!r.ok) throw new Error(r.status);
     DATA = await r.json();
     try { const rg = await fetch('geo.json?_=' + Date.now(), { cache: 'no-store' }); GEO = rg.ok ? await rg.json() : GEO; } catch (e) {}
+    if (!TMDA) { try { const rt = await fetch('tmda.json', { cache: 'no-store' }); TMDA = rt.ok ? await rt.json() : null; } catch (e) {} }
     pruebas = DATA.pruebas || [];
     armarGrupos();
     pasos = (DATA.pasos || [...new Set(DATA.mediciones.map(m => m.paso))]).filter(p => !pruebas.includes(p) && grupoDe(p) === GRUPO_SEL);
