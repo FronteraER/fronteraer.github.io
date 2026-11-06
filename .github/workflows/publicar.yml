@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false   # cancelar una publicación a medias puede trabar las siguientes
 
 jobs:
   publicar:
@@ -27,3 +27,14 @@ jobs:
           path: _site
       - id: deploy
         uses: actions/deploy-pages@v4
+        continue-on-error: true
+        with:
+          timeout: 300000
+      - name: Reintentar si GitHub Pages falló
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 60
+      - id: deploy2
+        if: steps.deploy.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        with:
+          timeout: 300000
