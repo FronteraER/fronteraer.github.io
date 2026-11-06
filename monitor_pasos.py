@@ -247,6 +247,7 @@ def medir(api_key, demo=False, cuando=None, silencio=False):
             if demo:
                 res = simular(nombre, cuando)
             else:
+                time.sleep(0.5)   # TomTom permite pocas consultas por segundo
                 resp = consultar(puntos, api_key)
                 if os.environ.get("DEBUG_TOMTOM"):
                     ruta = resp["routes"][0]
