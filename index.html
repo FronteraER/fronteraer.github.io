@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Pasos Entre Ríos → Uruguay · Demoras en vivo</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --page: #f5f4f0;
+    --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #7a7974;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --page: #111110; --surface-1: #1a1a19;
+      --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --page: #111110; --surface-1: #1a1a19;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .viz-root {
+    min-height: 100vh; background: var(--page); color: var(--text-primary);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 28px clamp(16px, 4vw, 48px) 40px;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
+  h1 { font-size: clamp(22px, 3vw, 28px); margin: 0; letter-spacing: -0.01em; }
+  .sub { color: var(--text-secondary); margin-top: 4px; }
+  .live { display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 14px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 0 var(--good); animation: pulse 2s infinite; }
+  .dot.stale { background: var(--text-muted); animation: none; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(12,163,12,.5);} 70% { box-shadow: 0 0 0 8px rgba(12,163,12,0);} 100% { box-shadow: 0 0 0 0 rgba(12,163,12,0);} }
+  @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 14px; }
+  .tile { padding: 18px 20px; }
+  .tile-name { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text-secondary); font-size: 14px; }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .big { font-size: 44px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.1; margin: 10px 0 2px; font-variant-numeric: tabular-nums; }
+  .big small { font-size: 18px; font-weight: 500; color: var(--text-secondary); margin-left: 4px; }
+  .status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-primary); }
+  .status svg { flex: none; }
+  .meta { display: flex; gap: 18px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--grid); font-size: 13px; color: var(--text-secondary); }
+  .meta b { display: block; font-size: 17px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+  .chart-card { padding: 18px 20px 12px; }
+  .chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .chart-head h2 { font-size: 16px; margin: 0; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--text-secondary); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 14px; height: 2px; border-radius: 2px; display: inline-block; }
+  .btn { background: transparent; border: 1px solid var(--border); color: var(--text-primary); border-radius: 8px; padding: 5px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+  .btn:hover { background: var(--grid); }
+  #chart { position: relative; width: 100%; height: 320px; }
+  #chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.12); min-width: 190px; display: none; z-index: 2; }
+  .tip .t { color: var(--text-secondary); margin-bottom: 6px; font-weight: 600; }
+  .tip .r { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+  .tip .r span:first-child { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+  .tip .r b { font-variant-numeric: tabular-nums; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { color: var(--text-secondary); font-weight: 600; }
+  .table-wrap { max-height: 320px; overflow: auto; display: none; }
+  .note { color: var(--text-muted); font-size: 12.5px; margin-top: 16px; }
+  .empty { padding: 60px 0; text-align: center; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Pasos Entre Ríos → Uruguay</h1>
+      <div class="sub">Demora estimada para cruzar, sentido Argentina → Uruguay</div>
+    </div>
+    <div class="live"><span class="dot" id="dot"></span><span id="updated">Cargando…</span></div>
+  </header>
+
+  <section class="tiles" id="tiles"></section>
+
+  <section class="card chart-card">
+    <div class="chart-head">
+      <h2>Demora en las últimas 24 h (minutos)</h2>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        <div class="legend" id="legend"></div>
+        <button class="btn" id="toggle">Ver tabla</button>
+      </div>
+    </div>
+    <div id="chart"><div class="tip" id="tip"></div></div>
+    <div class="table-wrap" id="tableWrap"></div>
+  </section>
+
+  <p class="note">Estimaciones calculadas con el tráfico de Google Maps (Routes API): demora = tiempo con tráfico − tiempo sin tráfico; autos en fila ≈ largo de la cola ÷ 7 m. Son indicadores, no conteos oficiales. Se actualiza solo.</p>
+</div>
+</div>
+
+<script>
+const SERIES = ['--series-1', '--series-2', '--series-3'];
+const UMBRAL = { moderada: 5, alta: 20 };   // minutos
+const REFRESCO_MS = 30000;
+let DATA = null, pasos = [];
+
+const css = v => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(v).trim();
+const fmtHora = d => d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+const fmtNum = n => n == null ? '—' : Number(n).toLocaleString('es-AR');
+
+function estado(min) {
+  if (min >= UMBRAL.alta) return { label: 'Demora alta', color: '--critical',
+    icon: '<path d="M8 1.5 15 14H1z" fill="currentColor"/><path d="M8 6v3.5M8 11.5v.5" stroke="var(--surface-1)" stroke-width="1.6" stroke-linecap="round"/>' };
+  if (min >= UMBRAL.moderada) return { label: 'Demora moderada', color: '--warning',
+    icon: '<circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M8 4.5v4l2.5 1.5" stroke="var(--surface-1)" stroke-width="1.6" fill="none" stroke-linecap="round"/>' };
+  return { label: 'Fluido', color: '--good',
+    icon: '<circle cx="8" cy="8" r="7" fill="currentColor"/><path d="m5 8.2 2 2 4-4.2" stroke="var(--surface-1)" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' };
+}
+
+async function cargar() {
+  try {
+    const r = await fetch('datos.json?_=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    DATA = await r.json();
+    pasos = DATA.pasos || [...new Set(DATA.mediciones.map(m => m.paso))];
+    render();
+  } catch (e) {
+    document.getElementById('updated').textContent = 'Sin datos todavía — ¿está corriendo el script?';
+    document.getElementById('dot').classList.add('stale');
+  }
+}
+
+function porPaso() {
+  const out = {};
+  pasos.forEach(p => out[p] = []);
+  DATA.mediciones.forEach(m => { if (out[m.paso]) out[m.paso].push({ ...m, t: new Date(m.fecha) }); });
+  Object.values(out).forEach(a => a.sort((x, y) => x.t - y.t));
+  return out;
+}
+
+function render() {
+  if (!DATA.mediciones || !DATA.mediciones.length) {
+    document.getElementById('updated').textContent = 'Esperando la primera medición…';
+    document.getElementById('dot').classList.add('stale');
+    return;
+  }
+  const series = porPaso();
+  const upd = new Date(DATA.actualizado);
+  const mins = Math.round((Date.now() - upd) / 60000);
+  document.getElementById('updated').textContent =
+    `Actualizado ${fmtHora(upd)}` + (mins >= 1 ? ` · hace ${mins} min` : ' · recién');
+  document.getElementById('dot').classList.toggle('stale', mins > 30);
+
+  // Tiles
+  document.getElementById('tiles').innerHTML = pasos.map((p, i) => {
+    const s = series[p], u = s[s.length - 1];
+    if (!u) return '';
+    const e = estado(u.demora_min);
+    return `<article class="card tile">
+      <div class="tile-name"><span class="swatch" style="background:var(${SERIES[i]})"></span>${p}</div>
+      <div class="big">${Math.round(u.demora_min)}<small>min</small></div>
+      <div class="status"><svg width="16" height="16" viewBox="0 0 16 16" style="color:var(${e.color})">${e.icon}</svg>${e.label}</div>
+      <div class="meta">
+        <div>Cola<b>${u.cola_m >= 1000 ? (u.cola_m/1000).toLocaleString('es-AR',{maximumFractionDigits:1}) + ' km' : fmtNum(u.cola_m) + ' m'}</b></div>
+        <div>Autos en fila<b>~${fmtNum(u.autos_cola_est)}</b></div>
+        <div>Flujo<b>${u.flujo_autos_h_est ? '~' + fmtNum(u.flujo_autos_h_est) + '/h' : '—'}</b></div>
+      </div></article>`;
+  }).join('');
+
+  document.getElementById('legend').innerHTML = pasos.map((p, i) =>
+    `<span><i style="background:var(${SERIES[i]})"></i>${p}</span>`).join('');
+
+  dibujarGrafico(series);
+  dibujarTabla();
+}
+
+function dibujarGrafico(series) {
+  const box = document.getElementById('chart');
+  const tip = document.getElementById('tip');
+  box.querySelector('svg')?.remove();
+  const W = box.clientWidth, H = box.clientHeight;
+  const m = { t: 14, r: W < 560 ? 16 : 130, b: 28, l: 38 };
+  const all = DATA.mediciones;
+  if (!all.length) { return; }
+  const t0 = Math.min(...all.map(d => +new Date(d.fecha))), t1 = Math.max(...all.map(d => +new Date(d.fecha)));
+  const yMaxRaw = Math.max(UMBRAL.moderada * 2, ...all.map(d => d.demora_min));
+  const step = yMaxRaw > 60 ? 20 : yMaxRaw > 30 ? 10 : 5;
+  const yMax = Math.ceil(yMaxRaw / step) * step;
+  const x = t => m.l + (t - t0) / Math.max(1, t1 - t0) * (W - m.l - m.r);
+  const y = v => m.t + (1 - v / yMax) * (H - m.t - m.b);
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', 'Demora en minutos por paso, últimas 24 horas');
+  let g = '';
+
+  for (let v = 0; v <= yMax; v += step) {
+    g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(${v === 0 ? '--axis' : '--grid'})" stroke-width="1"/>`;
+    g += `<text x="${m.l - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--text-muted)">${v}</text>`;
+  }
+  // Ticks horarios cada 3 h (o 6 h si es angosto)
+  const hstep = (W < 560 ? 6 : 3) * 3600e3;
+  for (let t = Math.ceil(t0 / hstep) * hstep; t <= t1; t += hstep) {
+    g += `<text x="${x(t)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--text-muted)">${fmtHora(new Date(t))}</text>`;
+  }
+
+  const ends = [];
+  pasos.forEach((p, i) => {
+    const s = series[p]; if (!s.length) return;
+    const d = s.map((pt, k) => (k ? 'L' : 'M') + x(+pt.t).toFixed(1) + ',' + y(pt.demora_min).toFixed(1)).join('');
+    g += `<path d="${d}" fill="none" stroke="var(${SERIES[i]})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    const u = s[s.length - 1];
+    g += `<circle cx="${x(+u.t)}" cy="${y(u.demora_min)}" r="4" fill="var(${SERIES[i]})" stroke="var(--surface-1)" stroke-width="2"/>`;
+    ends.push({ y: y(u.demora_min), label: p.split(' – ')[0], val: Math.round(u.demora_min), i });
+  });
+
+  // Etiquetas directas al final de cada línea, sin superponerse
+  if (m.r > 40) {
+    ends.sort((a, b) => a.y - b.y);
+    for (let k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 16) ends[k].y = ends[k - 1].y + 16;
+    ends.forEach(e => {
+      g += `<text x="${W - m.r + 10}" y="${e.y + 4}" font-size="12" fill="var(--text-secondary)"><tspan font-weight="600" fill="var(--text-primary)">${e.val}′</tspan> ${e.label}</text>`;
+    });
+  }
+
+  g += `<line id="xh" y1="${m.t}" y2="${H - m.b}" stroke="var(--axis)" stroke-width="1" visibility="hidden"/>`;
+  g += `<g id="xhDots"></g>`;
+  g += `<rect x="${m.l}" y="0" width="${Math.max(0, W - m.l - m.r)}" height="${H}" fill="transparent" id="hit"/>`;
+  svg.innerHTML = g;
+  box.appendChild(svg);
+
+  // Crosshair + tooltip
+  const hit = svg.querySelector('#hit'), xh = svg.querySelector('#xh'), dots = svg.querySelector('#xhDots');
+  const mover = ev => {
+    const rect = svg.getBoundingClientRect();
+    const px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left;
+    const tt = t0 + (px - m.l) / (W - m.l - m.r) * (t1 - t0);
+    let rows = '', dHtml = '', tx = null, tShown = null;
+    pasos.forEach((p, i) => {
+      const s = series[p]; if (!s.length) return;
+      let best = s[0];
+      for (const pt of s) if (Math.abs(pt.t - tt) < Math.abs(best.t - tt)) best = pt;
+      tx = x(+best.t); tShown = best.t;
+      dHtml += `<circle cx="${tx}" cy="${y(best.demora_min)}" r="4" fill="var(${SERIES[i]})" stroke="var(--surface-1)" stroke-width="2"/>`;
+      rows += `<div class="r"><span><span class="swatch" style="background:var(${SERIES[i]})"></span>${p}</span><b>${best.demora_min.toLocaleString('es-AR')} min</b></div>`;
+    });
+    xh.setAttribute('x1', tx); xh.setAttribute('x2', tx); xh.setAttribute('visibility', 'visible');
+    dots.innerHTML = dHtml;
+    tip.innerHTML = `<div class="t">${fmtHora(tShown)}</div>${rows}`;
+    tip.style.display = 'block';
+    const left = tx + 14 + tip.offsetWidth > W ? tx - 14 - tip.offsetWidth : tx + 14;
+    tip.style.left = Math.max(0, left) + 'px';
+    tip.style.top = '8px';
+  };
+  const salir = () => { xh.setAttribute('visibility', 'hidden'); dots.innerHTML = ''; tip.style.display = 'none'; };
+  hit.addEventListener('mousemove', mover);
+  hit.addEventListener('touchmove', mover, { passive: true });
+  hit.addEventListener('touchstart', mover, { passive: true });
+  hit.addEventListener('mouseleave', salir);
+  hit.addEventListener('touchend', salir);
+  box.appendChild(tip);
+}
+
+function dibujarTabla() {
+  const filas = [...DATA.mediciones].sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 300);
+  document.getElementById('tableWrap').innerHTML = `<table><thead><tr>
+    <th>Hora</th><th>Paso</th><th>Demora (min)</th><th>Cola (m)</th><th>Autos en fila</th><th>Flujo (autos/h)</th></tr></thead><tbody>` +
+    filas.map(f => `<tr><td>${fmtHora(new Date(f.fecha))}</td><td>${f.paso}</td><td>${f.demora_min.toLocaleString('es-AR')}</td>
+      <td>${fmtNum(f.cola_m)}</td><td>~${fmtNum(f.autos_cola_est)}</td><td>${f.flujo_autos_h_est ? '~' + fmtNum(f.flujo_autos_h_est) : '—'}</td></tr>`).join('') +
+    '</tbody></table>';
+}
+
+document.getElementById('toggle').addEventListener('click', e => {
+  const tw = document.getElementById('tableWrap'), ch = document.getElementById('chart');
+  const showTable = tw.style.display !== 'block';
+  tw.style.display = showTable ? 'block' : 'none';
+  ch.style.display = showTable ? 'none' : 'block';
+  e.target.textContent = showTable ? 'Ver gráfico' : 'Ver tabla';
+  if (!showTable && DATA) dibujarGrafico(porPaso());
+});
+let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => DATA && dibujarGrafico(porPaso()), 150); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => DATA && render());
+
+cargar();
+setInterval(cargar, REFRESCO_MS);
+</script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+name: Medir pasos y publicar
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # cada 10 minutos (GitHub puede atrasarlo unos minutos)
+  workflow_dispatch:          # botón "Run workflow" para correrlo a mano
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: medir
+  cancel-in-progress: false
+
+jobs:
+  medir:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Medir
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+        run: python3 monitor_pasos.py --una-vez
+
+      - name: Guardar datos en el repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- datos.json pasos.csv || true
+          git commit -m "Medición $(TZ=America/Argentina/Buenos_Aires date '+%Y-%m-%d %H:%M')" || echo "Sin cambios"
+          git pull --rebase
+          git push
+
+      - name: Preparar sitio
+        run: mkdir -p _site && cp index.html datos.json _site/
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
