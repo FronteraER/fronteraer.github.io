@@ -2,7 +2,7 @@ name: Medir pasos y publicar
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # cada 10 minutos (GitHub puede atrasarlo unos minutos)
+    - cron: "*/30 * * * *"   # cada 30 min: ~4.300 consultas/mes, dentro de las 5.000 gratis de Google
   workflow_dispatch:          # botón "Run workflow" para correrlo a mano
 
 permissions:
