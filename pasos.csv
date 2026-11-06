@@ -11,3 +11,6 @@ fecha,paso,sentido,demora_min,cola_m,autos_cola_est,flujo_autos_h_est
 2026-11-05T23:19:01-03:00,Colón – Paysandú,AR->UY,0.0,0,0,,28.6,29.6,29.6,-1.1,0.96
 2026-11-05T23:19:01-03:00,Gualeguaychú – Fray Bentos,AR->UY,0.0,0,0,,42.2,42.0,42.0,0.2,1.0
 2026-11-05T23:19:01-03:00,Concordia – Salto,AR->UY,0.0,0,0,,56.5,55.7,55.7,0.8,1.01
+2026-11-05T23:22:33-03:00,Colón – Paysandú,AR->UY,0.0,0,0,,,28.6,29.6,29.6,-1.1,0.96
+2026-11-05T23:22:33-03:00,Gualeguaychú – Fray Bentos,AR->UY,0.0,0,0,,,42.2,42.0,42.0,0.2,1.0
+2026-11-05T23:22:33-03:00,Concordia – Salto,AR->UY,0.0,0,0,,,56.2,55.7,55.7,0.5,1.01
