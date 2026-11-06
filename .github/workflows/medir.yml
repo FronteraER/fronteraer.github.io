@@ -34,6 +34,7 @@ jobs:
       - name: Medir
         env:
           TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
+          DEBUG_TOMTOM: "1"   # imprime en el log lo que responde TomTom (sin la clave)
         run: python3 monitor_pasos.py --una-vez
 
       - name: Guardar datos en el repo

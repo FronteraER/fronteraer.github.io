@@ -233,7 +233,19 @@ def medir(api_key, demo=False, cuando=None, silencio=False):
     filas = []
     for nombre, puntos in PASOS.items():
         try:
-            res = simular(nombre, cuando) if demo else analizar(consultar(puntos, api_key), nombre)
+            if demo:
+                res = simular(nombre, cuando)
+            else:
+                resp = consultar(puntos, api_key)
+                if os.environ.get("DEBUG_TOMTOM"):
+                    ruta = resp["routes"][0]
+                    secs = {}
+                    for sec in ruta.get("sections", []):
+                        k = sec.get("sectionType") + ":" + str(sec.get("simpleCategory", ""))
+                        secs[k] = secs.get(k, 0) + 1
+                    print("[debug]", nombre, json.dumps(ruta["summary"]), secs,
+                          "puntos:", sum(len(l.get("points", [])) for l in ruta.get("legs", [])))
+                res = analizar(resp, nombre)
         except Exception as e:  # noqa: BLE001
             print(f"[error] {nombre}: {e}", file=sys.stderr)
             continue
