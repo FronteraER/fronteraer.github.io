@@ -1,184 +1,56 @@
 {
  "Colón – Paysandú": {
   "tmda": 2600.0,
-  "ruta": "0135",
-  "dist_ref_m": 2411,
-  "props": {
-   "gid": 908,
-   "cod_ruta": "0135",
-   "valor": 2600,
-   "sentido": "A",
-   "color": 2751236,
-   "id_distrit": 17,
-   "tmda17": 2600
-  }
+  "cod_ruta": "0135",
+  "dist_ref_m": 24,
+  "anio": 2017
  },
  "Gualeguaychú – Fray Bentos": {
   "tmda": 2330.0,
-  "ruta": "0136",
-  "dist_ref_m": 6030,
-  "props": {
-   "gid": 910,
-   "cod_ruta": "0136",
-   "valor": 2330,
-   "sentido": "A",
-   "color": 2751236,
-   "id_distrit": 17,
-   "tmda17": 2330
-  }
+  "cod_ruta": "0136",
+  "dist_ref_m": 136,
+  "anio": 2017
  },
  "Concordia – Salto": {
   "tmda": 3387.0,
-  "ruta": "A015",
-  "dist_ref_m": 14936,
-  "props": {
-   "gid": 1218,
-   "cod_ruta": "A015",
-   "valor": 3387,
-   "sentido": "A",
-   "color": 2751236,
-   "id_distrit": 17,
-   "tmda17": 3387
-  }
- },
- "RN 9 sur · desde Oncativo": {
-  "tmda": 60400.0,
-  "ruta": "A019",
-  "dist_ref_m": 72,
-  "props": {
-   "gid": 1228,
-   "cod_ruta": "A019",
-   "valor": 60400,
-   "sentido": "A",
-   "color": 16450585,
-   "id_distrit": 2,
-   "tmda17": 60400
-  }
+  "cod_ruta": "A015",
+  "dist_ref_m": 28,
+  "anio": 2017
  },
  "RN 19 · desde Río Primero": {
-  "tmda": 27500.0,
-  "ruta": "A019",
-  "dist_ref_m": 4773,
-  "props": {
-   "gid": 1223,
-   "cod_ruta": "A019",
-   "valor": 27500,
-   "sentido": "A",
-   "color": 16450585,
-   "id_distrit": 2,
-   "tmda17": 27500
-  }
- },
- "RN 9 norte · desde Jesús María": {
-  "tmda": 60400.0,
-  "ruta": "A019",
-  "dist_ref_m": 5796,
-  "props": {
-   "gid": 1228,
-   "cod_ruta": "A019",
-   "valor": 60400,
-   "sentido": "A",
-   "color": 16450585,
-   "id_distrit": 2,
-   "tmda17": 60400
-  }
+  "tmda": 7550.0,
+  "cod_ruta": "0019",
+  "dist_ref_m": 509,
+  "anio": 2017
  },
  "RN 20 · desde Villa Carlos Paz": {
-  "tmda": 41150.0,
-  "ruta": "0020",
-  "dist_ref_m": 41,
-  "props": {
-   "gid": 459,
-   "cod_ruta": "0020",
-   "valor": 41150,
-   "sentido": "A",
-   "color": 16450585,
-   "id_distrit": 2,
-   "tmda17": 41150
-  }
+  "tmda": 34900.0,
+  "cod_ruta": "0020",
+  "dist_ref_m": 368,
+  "anio": 2017
  },
  "RN 36 · desde Almafuerte": {
-  "tmda": 56134.0,
-  "ruta": "A019",
-  "dist_ref_m": 41,
-  "props": {
-   "gid": 1227,
-   "cod_ruta": "A019",
-   "valor": 56134,
-   "sentido": "A",
-   "color": 16450585,
-   "id_distrit": 2,
-   "tmda17": 56134
-  }
+  "tmda": 8100.0,
+  "cod_ruta": "0036",
+  "dist_ref_m": 498,
+  "anio": 2017
  },
  "Acceso Oeste · desde Liniers": {
-  "tmda": 32700.0,
-  "ruta": "0007",
-  "dist_ref_m": 18,
-  "props": {
-   "gid": 152,
-   "cod_ruta": "0007",
-   "valor": 32700,
-   "sentido": "A",
-   "color": 16450585,
-   "id_distrit": 1,
-   "tmda17": 32700
-  }
+  "tmda": 77300.0,
+  "cod_ruta": "0007",
+  "dist_ref_m": 5,
+  "anio": 2017
  },
  "RN 8 / RP 6 · desde Pilar": {
-  "tmda": 10435.0,
-  "ruta": "0007",
-  "dist_ref_m": 974,
-  "props": {
-   "gid": 148,
-   "cod_ruta": "0007",
-   "valor": 10435,
-   "sentido": "A",
-   "color": 16450585,
-   "id_distrit": 1,
-   "tmda17": 10435
-  }
- },
- "RN 5 · desde Mercedes": {
-  "tmda": 10435.0,
-  "ruta": "0007",
-  "dist_ref_m": 542,
-  "props": {
-   "gid": 148,
-   "cod_ruta": "0007",
-   "valor": 10435,
-   "sentido": "A",
-   "color": 16450585,
-   "id_distrit": 1,
-   "tmda17": 10435
-  }
+  "tmda": 24344.0,
+  "cod_ruta": "0008",
+  "dist_ref_m": 47,
+  "anio": 2017
  },
  "RN 7 · desde San Andrés de Giles": {
   "tmda": 10435.0,
-  "ruta": "0007",
-  "dist_ref_m": 178,
-  "props": {
-   "gid": 148,
-   "cod_ruta": "0007",
-   "valor": 10435,
-   "sentido": "A",
-   "color": 16450585,
-   "id_distrit": 1,
-   "tmda17": 10435
-  }
- },
- "RP 6 · desde Cañuelas": {
-  "tmda": 38089.0,
-  "ruta": "0007",
-  "dist_ref_m": 44,
-  "props": {
-   "gid": 154,
-   "cod_ruta": "0007",
-   "valor": 38089,
-   "sentido": "A",
-   "color": 16450585,
-   "id_distrit": 1,
-   "tmda17": 38089
-  }
+  "cod_ruta": "0007",
+  "dist_ref_m": 134,
+  "anio": 2017
  }
 }
