@@ -1,0 +1,21 @@
+name: Buscar TMDA de Vialidad
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  tmda:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Descargar TMDA (Vialidad Nacional, datos abiertos)
+        run: |
+          curl -sSL --retry 3 -o tmda_vialidad.geojson "https://ide.transporte.gob.ar/geoserver/observ/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=observ%3A_3.4.1.4.1.tmda_17_18_view&maxFeatures=5000&outputFormat=application%2Fjson"
+          ls -la tmda_vialidad.geojson && head -c 400 tmda_vialidad.geojson
+      - name: Cruzar con nuestras rutas
+        run: python3 herramientas/tmda.py tmda_vialidad.geojson
+      - name: Guardar
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tmda.json && git commit -m "TMDA de Vialidad por ruta" && git pull --rebase && git push || echo "sin cambios"
