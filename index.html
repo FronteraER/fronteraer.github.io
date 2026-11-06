@@ -147,8 +147,6 @@ const RUTAS = {
   'Gualeguaychú – Fray Bentos': ['-33.0094,-58.5172', '-33.1165,-58.3107'],
   'Colón – Paysandú':           ['-32.2234,-58.1440', '-32.3171,-58.0807'],
   'Concordia – Salto':          ['-31.3929,-58.0209', '-31.3833,-57.9667'],
-  'Prueba: Haneda → Tokio (Bayshore)': ['35.5494,139.7798', '35.6812,139.7671', '35.6330,139.7930'],
-  'Prueba: Aeropuerto → MG Road (Bengaluru)': ['13.1986,77.7066', '12.9756,77.6050'],
 };
 const linkMaps = p => RUTAS[p] ? `https://www.google.com/maps/dir/?api=1&origin=${RUTAS[p][0]}&destination=${RUTAS[p][1]}${RUTAS[p][2] ? '&waypoints=' + RUTAS[p][2] : ''}&travelmode=driving` : null;
 const UMBRAL = { moderada: 5, alta: 20 };   // minutos

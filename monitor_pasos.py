@@ -52,16 +52,8 @@ PASOS = {
     "Colón – Paysandú":           ((-32.2234, -58.1440), (-32.3171, -58.0807)),
     "Gualeguaychú – Fray Bentos": ((-33.0094, -58.5172), (-33.1165, -58.3107)),
     "Concordia – Salto":          ((-31.3929, -58.0209), (-31.3833, -57.9667)),
-    # Ruta de PRUEBA para verificar que el sistema mide bien con tráfico real:
-    # aeropuerto de Haneda -> estación de Tokio, forzando la Bayshore Route
-    # (Shuto Wangan) con un punto intermedio en Ariake.
-    "Prueba: Haneda → Tokio (Bayshore)": ((35.5494, 139.7798), (35.6330, 139.7930),
-                                          (35.6812, 139.7671)),
-    # Segunda prueba, en una ciudad con mucha cobertura de tráfico de TomTom:
-    # aeropuerto de Bengaluru (India) -> MG Road, por la ruta del Hebbal.
-    "Prueba: Aeropuerto → MG Road (Bengaluru)": ((13.1986, 77.7066), (12.9756, 77.6050)),
 }
-PRUEBAS = {"Prueba: Haneda → Tokio (Bayshore)", "Prueba: Aeropuerto → MG Road (Bengaluru)"}
+PRUEBAS = set()   # rutas de prueba (se muestran aparte en el dashboard)
 
 METROS_POR_AUTO = 7.0   # largo promedio auto + espacio en fila
 PERSONAS_POR_AUTO = 3.0 # ocupación promedio supuesta (para estimar personas)
