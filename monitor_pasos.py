@@ -114,7 +114,14 @@ def consultar(puntos, api_key):
 def analizar(resp, paso=None):
     ruta = resp["routes"][0]
     sm = ruta["summary"]
-    demora_min = max(0.0, sm.get("trafficDelayInSeconds", 0) / 60)
+    # Demora = viaje con tráfico actual - viaje sin tráfico. (No se usa
+    # trafficDelayInSeconds porque TomTom solo cuenta ahí las demoras por
+    # incidentes reportados, no la lentitud general del tránsito.)
+    viaje, libre = sm.get("travelTimeInSeconds"), sm.get("noTrafficTravelTimeInSeconds")
+    if viaje and libre:
+        demora_min = max(0.0, (viaje - libre) / 60)
+    else:
+        demora_min = max(0.0, sm.get("trafficDelayInSeconds", 0) / 60)
 
     # Puntos de la ruta, para medir el largo de cada tramo con tráfico
     pts = [(p["latitude"], p["longitude"])
@@ -123,7 +130,8 @@ def analizar(resp, paso=None):
     # Tramo congestionado contiguo más largo (la fila)
     tramos = sorted((s["startPointIndex"], s["endPointIndex"])
                     for s in ruta.get("sections", [])
-                    if s.get("sectionType") == "TRAFFIC")
+                    if s.get("sectionType") == "TRAFFIC"
+                    and s.get("simpleCategory") == "JAM")   # solo embotellamientos, no obras
     cola_max, ini_act, fin_act = 0.0, None, None
 
     def largo(i, f):
