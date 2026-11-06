@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Monitor de demoras en los pasos Entre Ríos -> Uruguay (solo sentido AR->UY),
-usando Google Routes API, con dashboard web en tiempo real.
+usando la API de rutas de TomTom (gratis, sin tarjeta), con dashboard web en tiempo real.
 
 Estima, para cada paso:
   - demora actual (min) = duración con tráfico - duración sin tráfico
@@ -10,7 +10,7 @@ Estima, para cada paso:
   - flujo (autos/h, estimado) = autos en cola / demora   (ley de Little)
 
 Uso:
-  export GOOGLE_MAPS_API_KEY="tu_clave"
+  export TOMTOM_API_KEY="tu_clave"
   python3 monitor_pasos.py --cada 10          # mide cada 10 min y sirve el dashboard
   python3 monitor_pasos.py --demo             # datos simulados, sin clave (para probar)
   python3 monitor_pasos.py --una-vez          # una medición y salir (GitHub Actions)
@@ -33,6 +33,7 @@ import random
 import sys
 import threading
 import time
+import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
@@ -42,18 +43,15 @@ AR = timezone(timedelta(hours=-3))   # hora de Argentina (sin horario de verano)
 def ahora():
     return datetime.now(AR)
 
-API_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
+API_URL = "https://api.tomtom.com/routing/1/calculateRoute/{o}:{d}/json"
 
-# Origen/destino como direcciones: Google traza la ruta que cruza el puente.
-# Para más precisión, reemplazá por coordenadas {"latLng": {...}} de un punto
-# unos km antes del control y otro justo después del puente.
+# Origen (lado argentino) y destino (lado uruguayo) como (lat, lng).
+# TomTom traza la ruta que cruza el puente. Para más precisión, mové el origen
+# a unos km antes del control y el destino a la salida del puente.
 PASOS = {
-    "Gualeguaychú – Fray Bentos": ("Gualeguaychú, Entre Ríos, Argentina",
-                                   "Fray Bentos, Río Negro, Uruguay"),
-    "Colón – Paysandú":           ("Colón, Entre Ríos, Argentina",
-                                   "Paysandú, Uruguay"),
-    "Concordia – Salto":          ("Concordia, Entre Ríos, Argentina",
-                                   "Salto, Uruguay"),
+    "Gualeguaychú – Fray Bentos": ((-33.0094, -58.5172), (-33.1165, -58.3107)),
+    "Colón – Paysandú":           ((-32.2234, -58.1440), (-32.3171, -58.0807)),
+    "Concordia – Salto":          ((-31.3929, -58.0209), (-31.3833, -57.9667)),
 }
 
 METROS_POR_AUTO = 7.0   # largo promedio auto + espacio en fila
@@ -64,29 +62,7 @@ HORAS_EN_DASHBOARD = 24
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 
 
-# ---------------------------------------------------------------- Google API
-
-def decodificar_polyline(s):
-    """Decodifica una encoded polyline de Google a lista de (lat, lng)."""
-    puntos, i, lat, lng = [], 0, 0, 0
-    while i < len(s):
-        for coord in (0, 1):
-            shift = res = 0
-            while True:
-                b = ord(s[i]) - 63
-                i += 1
-                res |= (b & 0x1F) << shift
-                shift += 5
-                if b < 0x20:
-                    break
-            d = ~(res >> 1) if res & 1 else res >> 1
-            if coord == 0:
-                lat += d
-            else:
-                lng += d
-        puntos.append((lat / 1e5, lng / 1e5))
-    return puntos
-
+# ---------------------------------------------------------------- TomTom API
 
 def distancia_m(a, b):
     R = 6371000
@@ -96,54 +72,50 @@ def distancia_m(a, b):
     return 2 * R * math.asin(math.sqrt(h))
 
 
-def segundos(dur):
-    return float(dur.rstrip("s")) if dur else 0.0
-
-
 def consultar(origen, destino, api_key):
-    body = {
-        "origin": {"address": origen},
-        "destination": {"address": destino},
-        "travelMode": "DRIVE",
-        "routingPreference": "TRAFFIC_AWARE_OPTIMAL",
-        "extraComputations": ["TRAFFIC_ON_POLYLINE"],
-        "polylineQuality": "HIGH_QUALITY",
-    }
-    req = urllib.request.Request(
-        API_URL,
-        data=json.dumps(body).encode(),
-        headers={
-            "Content-Type": "application/json",
-            "X-Goog-Api-Key": api_key,
-            "X-Goog-FieldMask": ("routes.duration,routes.staticDuration,"
-                                 "routes.distanceMeters,routes.polyline.encodedPolyline,"
-                                 "routes.travelAdvisory.speedReadingIntervals"),
-        },
-    )
-    with urllib.request.urlopen(req, timeout=30) as r:
+    fmt = lambda p: f"{p[0]},{p[1]}"
+    url = API_URL.format(o=fmt(origen), d=fmt(destino)) + "?" + urllib.parse.urlencode({
+        "key": api_key,
+        "traffic": "true",
+        "travelMode": "car",
+        "routeType": "fastest",
+        "computeTravelTimeFor": "all",   # incluye el tiempo sin tráfico
+        "sectionType": "traffic",        # tramos con embotellamiento
+    })
+    with urllib.request.urlopen(url, timeout=30) as r:
         return json.load(r)
 
 
 def analizar(resp):
     ruta = resp["routes"][0]
-    dur = segundos(ruta.get("duration"))
-    est = segundos(ruta.get("staticDuration"))
-    demora_min = max(0.0, (dur - est) / 60)
+    sm = ruta["summary"]
+    demora_min = max(0.0, sm.get("trafficDelayInSeconds", 0) / 60)
 
-    pts = decodificar_polyline(ruta["polyline"]["encodedPolyline"])
-    intervalos = ruta.get("travelAdvisory", {}).get("speedReadingIntervals", [])
+    # Puntos de la ruta, para medir el largo de cada tramo con tráfico
+    pts = [(p["latitude"], p["longitude"])
+           for leg in ruta.get("legs", []) for p in leg.get("points", [])]
 
-    cola_max = cola_actual = 0.0
-    for iv in intervalos:
-        ini = iv.get("startPolylinePointIndex", 0)
-        fin = iv.get("endPolylinePointIndex", ini)
-        largo = sum(distancia_m(pts[k], pts[k + 1])
-                    for k in range(ini, min(fin, len(pts) - 1)))
-        if iv.get("speed", "NORMAL") in ("SLOW", "TRAFFIC_JAM"):
-            cola_actual += largo
-            cola_max = max(cola_max, cola_actual)
+    # Tramo congestionado contiguo más largo (la fila)
+    tramos = sorted((s["startPointIndex"], s["endPointIndex"])
+                    for s in ruta.get("sections", [])
+                    if s.get("sectionType") == "TRAFFIC")
+    cola_max, ini_act, fin_act = 0.0, None, None
+
+    def largo(i, f):
+        return sum(distancia_m(pts[k], pts[k + 1]) for k in range(i, min(f, len(pts) - 1)))
+
+    for i, f in tramos:
+        if fin_act is not None and i <= fin_act + 1:
+            fin_act = max(fin_act, f)
         else:
-            cola_actual = 0.0
+            if ini_act is not None:
+                cola_max = max(cola_max, largo(ini_act, fin_act))
+            ini_act, fin_act = i, f
+    if ini_act is not None:
+        cola_max = max(cola_max, largo(ini_act, fin_act))
+
+    if not pts:  # sin geometría: usar el total que informa TomTom
+        cola_max = sm.get("trafficLengthInMeters", 0)
 
     return resultado(demora_min, cola_max)
 
@@ -252,9 +224,9 @@ def main():
     a = p.parse_args()
 
     os.chdir(CARPETA)
-    key = os.environ.get("GOOGLE_MAPS_API_KEY")
+    key = os.environ.get("TOMTOM_API_KEY")
     if not a.demo and not key:
-        sys.exit("Falta GOOGLE_MAPS_API_KEY (o usá --demo para probar)")
+        sys.exit("Falta TOMTOM_API_KEY (o usá --demo para probar)")
 
     if a.una_vez:
         medir(key)

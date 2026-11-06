@@ -6,11 +6,11 @@ Dashboard público con la demora estimada para cruzar a Uruguay por:
 - Colón – Paysandú (Puente General Artigas)
 - Concordia – Salto (Represa Salto Grande)
 
-Cada 30 minutos, GitHub Actions consulta el tráfico en Google Maps (Routes API),
+Cada 10 minutos, GitHub Actions consulta el tráfico en TomTom (Routing API, gratis),
 calcula demora, largo de la cola y autos estimados, guarda el resultado en
 `datos.json` / `pasos.csv` y vuelve a publicar la página en GitHub Pages.
 
-> Son estimaciones a partir del tráfico de Google Maps, no conteos oficiales.
+> Son estimaciones a partir del tráfico de TomTom, no conteos oficiales. Datos de tráfico © TomTom.
 
 ## Archivos
 
@@ -26,7 +26,7 @@ calcula demora, largo de la cola y autos estimados, guarda el resultado en
 
 ```
 python3 monitor_pasos.py --demo              # datos simulados
-GOOGLE_MAPS_API_KEY=... python3 monitor_pasos.py --cada 10
+TOMTOM_API_KEY=... python3 monitor_pasos.py --cada 10
 ```
 
 Y abrir http://localhost:8000

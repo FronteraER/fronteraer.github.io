@@ -2,7 +2,7 @@ name: Medir pasos y publicar
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # cada 30 min: ~4.300 consultas/mes, dentro de las 5.000 gratis de Google
+    - cron: "*/10 * * * *"   # cada 10 min: ~13.000 consultas/mes, dentro de las 20.000 gratis de TomTom
   workflow_dispatch:          # botón "Run workflow" para correrlo a mano
 
 permissions:
@@ -29,7 +29,7 @@ jobs:
 
       - name: Medir
         env:
-          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
         run: python3 monitor_pasos.py --una-vez
 
       - name: Guardar datos en el repo
