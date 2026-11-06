@@ -42,7 +42,7 @@ jobs:
           FIN_EVENTO=$(date -d '2026-11-12T00:00:00-03:00' +%s)   # hasta después de Luján
           while :; do
             python3 monitor_pasos.py --una-vez || echo "La medición falló; sigo"
-            for f in datos.json pasos.csv; do [ -f "$f" ] && git add "$f"; done
+            for f in datos.json pasos.csv geo.json; do [ -f "$f" ] && git add "$f"; done
             git commit -q -m "Medición $(TZ=America/Argentina/Buenos_Aires date '+%Y-%m-%d %H:%M')" || true
             git pull -q --rebase && git push -q || echo "No se pudo subir; reintento en la próxima"
             gh workflow run publicar.yml --ref main || echo "No se pudo lanzar la publicación"

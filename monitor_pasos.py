@@ -151,7 +151,12 @@ def consultar(puntos, api_key, depart=None):
         return json.load(r)
 
 
-def analizar(resp, paso=None):
+GEO = {}   # geometría y embotellamientos de la última medición, para el mapa
+GEO_PATH = "geo.json"
+GEO_MAX_PUNTOS = 250
+
+
+def analizar(resp, paso=None, sentido=None):
     ruta = resp["routes"][0]
     sm = ruta["summary"]
     # Demora = viaje con tráfico actual - viaje sin tráfico. (No se usa
@@ -186,6 +191,16 @@ def analizar(resp, paso=None):
             ini_act, fin_act = i, f
     if ini_act is not None:
         cola_max = max(cola_max, largo(ini_act, fin_act))
+
+    if pts and paso:
+        paso_k = max(1, len(pts) // GEO_MAX_PUNTOS)
+        idx = list(range(0, len(pts), paso_k))
+        if idx[-1] != len(pts) - 1:
+            idx.append(len(pts) - 1)
+        GEO[f"{paso}|{sentido}"] = {
+            "pts": [[round(pts[i][0], 5), round(pts[i][1], 5)] for i in idx],
+            "atascos": [[i // paso_k, min(len(idx) - 1, -(-f // paso_k))] for i, f in tramos],
+        }
 
     if not pts:  # sin geometría: usar el total que informa TomTom
         cola_max = sm.get("trafficLengthInMeters", 0)
@@ -307,7 +322,7 @@ def medir(api_key, demo=False, cuando=None, silencio=False):
                             k = sec.get("sectionType") + ":" + str(sec.get("simpleCategory", ""))
                             secs[k] = secs.get(k, 0) + 1
                         print("[debug]", nombre, sentido, json.dumps(ruta["summary"]), secs)
-                    res = analizar(resp, nombre)
+                    res = analizar(resp, nombre, sentido)
             except Exception as e:  # noqa: BLE001
                 print(f"[error] {nombre} {sentido}: {e}", file=sys.stderr)
                 continue
@@ -318,6 +333,18 @@ def medir(api_key, demo=False, cuando=None, silencio=False):
                 print(f"{cuando:%H:%M}  {nombre:34} {sentido:6} {res.get('largo_km', '')} km  demora {res['demora_min']:>5} min  "
                       f"cola {res['cola_m']:>5} m  ~{res['autos_cola_est']} autos")
     guardar(filas)
+    if demo:   # geometría simulada: línea recta con un tramo atascado
+        for nombre in PASOS:
+            for sentido in sentidos_de(nombre):
+                (a, b) = puntos_de(nombre, sentido)[0], puntos_de(nombre, sentido)[-1]
+                pts = [[a[0] + (b[0] - a[0]) * k / 20, a[1] + (b[1] - a[1]) * k / 20] for k in range(21)]
+                GEO[f"{nombre}|{sentido}"] = {"pts": pts, "atascos": [[12, 15]] if random.random() < 0.4 else []}
+    if GEO:
+        datos_geo = {"actualizado": filas[-1]["fecha"] if filas else None, "rutas": GEO}
+        tmp = GEO_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(datos_geo, f, ensure_ascii=False, separators=(",", ":"))
+        os.replace(tmp, GEO_PATH)
 
 
 # ---------------------------------------------------------------- Servidor web
