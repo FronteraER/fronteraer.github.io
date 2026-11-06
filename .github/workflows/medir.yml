@@ -41,13 +41,13 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for f in datos.json pasos.csv pronostico.json; do [ -f "$f" ] && git add "$f"; done
+          for f in datos.json pasos.csv; do [ -f "$f" ] && git add "$f"; done
           git commit -m "Medición $(TZ=America/Argentina/Buenos_Aires date '+%Y-%m-%d %H:%M')" || echo "Sin cambios"
           git pull --rebase
           git push
 
       - name: Preparar sitio
-        run: mkdir -p _site && cp index.html datos.json _site/ && (cp pronostico.json _site/ || true)
+        run: mkdir -p _site && cp index.html datos.json _site/
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

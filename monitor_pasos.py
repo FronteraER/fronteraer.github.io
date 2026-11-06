@@ -58,9 +58,6 @@ PRUEBAS = set()   # rutas de prueba (se muestran aparte en el dashboard)
 # Sentidos que se miden. Los puntos de PASOS están en sentido AR->UY;
 # para UY->AR se recorren al revés.
 SENTIDOS = ["AR->UY", "UY->AR"]
-PRONOSTICO_PATH = "pronostico.json"
-PRONOSTICO_HORAS = 24          # horas hacia adelante
-PRONOSTICO_REFRESCO_H = 6      # se recalcula cada 6 h
 
 METROS_POR_AUTO = 7.0   # largo promedio auto + espacio en fila
 PERSONAS_POR_AUTO = 3.0 # ocupación promedio supuesta (para estimar personas)
@@ -278,55 +275,6 @@ def medir(api_key, demo=False, cuando=None, silencio=False):
     guardar(filas)
 
 
-def pronosticar(api_key, demo=False, forzar=False):
-    """Demora HABITUAL prevista para cada hora de las próximas 24 h, según el
-    historial de TomTom. No incluye eventos especiales (como la visita del Papa):
-    sirve de base para comparar con lo que pase en vivo."""
-    try:
-        with open(PRONOSTICO_PATH, encoding="utf-8") as f:
-            viejo = json.load(f)
-        edad_h = (ahora() - datetime.fromisoformat(viejo["generado"])).total_seconds() / 3600
-        if edad_h < PRONOSTICO_REFRESCO_H and not forzar and not demo:
-            return
-    except (FileNotFoundError, json.JSONDecodeError, KeyError, ValueError):
-        pass
-
-    inicio = (ahora() + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-    horas = [inicio + timedelta(hours=i) for i in range(PRONOSTICO_HORAS)]
-    salida = {"generado": ahora().isoformat(timespec="seconds"), "series": []}
-    for nombre in PASOS:
-        for sentido in SENTIDOS:
-            puntos = []
-            for h in horas:
-                try:
-                    if demo:
-                        r = simular(nombre, h, sentido)
-                        libre, hab = r["libre_min"], r["habitual_min"]
-                    else:
-                        time.sleep(0.5)
-                        sm = consultar(puntos_de(nombre, sentido), api_key,
-                                       depart=h.isoformat(timespec="seconds"))["routes"][0]["summary"]
-                        libre = sm["noTrafficTravelTimeInSeconds"] / 60
-                        hab = sm["historicTrafficTravelTimeInSeconds"] / 60
-                except Exception as e:  # noqa: BLE001
-                    print(f"[error] pronóstico {nombre} {sentido} {h:%H}h: {e}", file=sys.stderr)
-                    continue
-                puntos.append({"hora": h.isoformat(timespec="minutes"),
-                               "habitual_min": round(hab, 1), "libre_min": round(libre, 1),
-                               "demora_habitual_min": round(max(0.0, hab - libre), 1)})
-            salida["series"].append({"paso": nombre, "sentido": sentido, "horas": puntos})
-            if puntos:
-                mejor = min(puntos, key=lambda x: x["demora_habitual_min"])
-                peor = max(puntos, key=lambda x: x["demora_habitual_min"])
-                print(f"pronóstico {nombre} {sentido}: mejor {mejor['hora'][11:16]} "
-                      f"(+{mejor['demora_habitual_min']}′), peor {peor['hora'][11:16]} "
-                      f"(+{peor['demora_habitual_min']}′)")
-    tmp = PRONOSTICO_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(salida, f, ensure_ascii=False)
-    os.replace(tmp, PRONOSTICO_PATH)
-
-
 # ---------------------------------------------------------------- Servidor web
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -366,7 +314,6 @@ def main():
 
     if a.una_vez:
         medir(key)
-        pronosticar(key)
         return
 
     if a.demo:
@@ -378,7 +325,6 @@ def main():
         while t < fin:
             medir(None, demo=True, cuando=t, silencio=True)
             t += timedelta(minutes=a.cada)
-        pronosticar(None, demo=True)
 
     servir(a.puerto)
     try:

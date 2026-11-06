@@ -83,7 +83,13 @@
   .seg button[aria-selected="true"] { background: var(--text-primary); color: var(--surface-1); }
   .tend { margin-top: 10px; font-size: 13px; color: var(--text-primary); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
   .tend small { color: var(--text-secondary); font-size: 12px; }
-  .cap { margin-top: 8px; font-size: 13px; }
+  .sat { margin-top: 14px; }
+  .sat-h { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); }
+  .sat-h b { color: var(--text-primary); }
+  .sat-bar { position: relative; height: 12px; border-radius: 6px; background: var(--grid); margin-top: 6px; overflow: hidden; }
+  .sat-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; transition: width .4s; }
+  .sat-bar .tick { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--surface-1); }
+  .sat-n { font-size: 12px; color: var(--text-secondary); margin-top: 5px; }
   .capbar { height: 6px; border-radius: 3px; background: var(--grid); margin-top: 4px; overflow: hidden; max-width: 320px; }
   .capbar i { display: block; height: 100%; border-radius: 3px; }
   .pron { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--grid); }
@@ -151,7 +157,7 @@
     <div class="table-wrap" id="tableWrap"></div>
   </section>
 
-  <p class="note">Estimaciones con el tráfico en tiempo real de TomTom. Demora = viaje ahora − viaje sin tráfico. “vs. normal” = viaje ahora − viaje habitual para ese día y hora, según el historial de TomTom; autos en fila ≈ largo de la cola ÷ 7 m; autos que cruzan por hora ≈ autos en fila ÷ demora (solo con fila de más de 200 m y 5 min; techo de 650/h según la capacidad informada del operativo en Colón–Paysandú); personas ≈ autos × 3. Tendencia = cambio vs. la medición anterior. Pronóstico = demora habitual por hora según el historial de TomTom (no contempla eventos). Son indicadores, no conteos oficiales. Se actualiza solo. Datos de tráfico © TomTom.</p>
+  <p class="note">Estimaciones con el tráfico en tiempo real de TomTom. Demora = viaje ahora − viaje sin tráfico. “vs. normal” = viaje ahora − viaje habitual para ese día y hora, según el historial de TomTom; autos en fila ≈ largo de la cola ÷ 7 m; autos que cruzan por hora ≈ autos en fila ÷ demora (solo con fila de más de 200 m y 5 min; techo de 650/h según la capacidad informada del operativo en Colón–Paysandú); personas ≈ autos × 3. Tendencia = cambio vs. la medición anterior. Saturación = autos que cruzan por hora ÷ 650 (capacidad informada del control); 100% si además la fila crece. Son indicadores, no conteos oficiales. Se actualiza solo. Datos de tráfico © TomTom.</p>
 </div>
 </div>
 
@@ -223,6 +229,7 @@ function tarjeta(p, s, prueba = false) {
       <div class="tile-name"><span class="swatch" style="background:var(${prueba ? '--text-muted' : col(p)})"></span>${prueba ? p : nombreSentido(p, SENTIDO)}</div>
       <div class="big">${Math.round(u.demora_min)}<small>min</small></div>
       <div class="status"><svg width="16" height="16" viewBox="0 0 16 16" style="color:var(${e.color})">${e.icon}</svg>${e.label}</div>
+      ${prueba ? '' : saturacion(s, u)}
       ${comparacion(u)}
       ${tendencia(s)}
       <div class="meta">
@@ -230,7 +237,7 @@ function tarjeta(p, s, prueba = false) {
         ${prueba ? '' : `<div>Autos en fila<b>~${fmtNum(u.autos_cola_est)}</b></div>
         <div>Cruzan ahora<b>${u.flujo_autos_h_est ? '~' + fmtNum(u.flujo_autos_h_est) + ' autos/h' : 'sin fila'}</b></div>`}
       </div>
-      ${prueba ? ultimas : resumenCruces(p, s, u) + capacidad(u) + pronostico(p)}
+      ${prueba ? ultimas : resumenCruces(p, s, u)}
       ${linkMaps(p) ? `<a class="maplink" href="${linkMaps(p)}" target="_blank" rel="noopener">Ver en Google Maps ↗</a>` : ''}
       </article>`;
 }
@@ -251,34 +258,26 @@ function tendencia(s) {
   return `<div class="tend"><span style="color:var(${color})">${icon}</span><b>${txt}</b><small>${sig(dd)}′ de demora, ${sig(dc)} m de fila vs. ${fmtHora(a.t)}${ritmo}</small></div>`;
 }
 
-// Qué porcentaje de la capacidad del control se está usando
-function capacidad(u) {
-  if (!u.flujo_autos_h_est) return '';
-  const pct = Math.min(100, Math.round(u.flujo_autos_h_est / CAPACIDAD * 100));
-  const c = pct >= 90 ? '--critical' : pct >= 60 ? '--warning' : '--good';
-  return `<div class="cap">Control al <b>${pct}%</b> de su capacidad${pct >= 90 ? ' · <b>saturado</b>: la fila solo puede crecer' : ''}<div class="capbar"><i style="width:${pct}%;background:var(${c})"></i></div></div>`;
-}
-
-// Pronóstico habitual próximas 24 h (historial de TomTom, sin evento)
-function pronostico(p) {
-  if (!PRON) return '';
-  const serie = (PRON.series || []).find(x => x.paso === p && x.sentido === SENTIDO);
-  if (!serie || !serie.horas.length) return '';
-  const hs = serie.horas.filter(x => new Date(x.hora) > Date.now() - 3600e3);
-  if (!hs.length) return '';
-  const max = Math.max(5, ...hs.map(x => x.demora_habitual_min));
-  const n = hs.length, W = 100, gap = 0.6, bw = W / n - gap;
-  const fH = x => new Date(x.hora).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-  const bars = hs.map((x, i) => {
-    const hgt = Math.max(1.5, x.demora_habitual_min / max * 52);
-    return `<rect x="${(i * (W / n)).toFixed(2)}" y="${(54 - hgt).toFixed(2)}" width="${bw.toFixed(2)}" height="${hgt.toFixed(2)}" rx="0.8" fill="var(${col(p)})"><title>${fH(x)}: +${x.demora_habitual_min.toLocaleString('es-AR')} min habitual</title></rect>`;
-  }).join('');
-  const lbl = `<div class="pron-x"><span>${fH(hs[0])}</span><span>${fH(hs[Math.floor(n / 2)])}</span><span>${fH(hs[n - 1])}</span></div>`;
-  const orden = [...hs].sort((a, b) => a.demora_habitual_min - b.demora_habitual_min);
-  const mejor = orden[0], peor = orden[orden.length - 1];
-  return `<div class="pron"><div class="pron-t">Pronóstico próximas ${n} h <small>· demora habitual por hora, sin contar el evento</small></div>
-    <svg viewBox="0 0 100 54" preserveAspectRatio="none" role="img" aria-label="Demora habitual por hora">${bars}</svg>${lbl}
-    <div class="pron-r">Mejor hora: <b>${fH(mejor)}</b> (+${Math.round(mejor.demora_habitual_min)}′) · Peor: <b>${fH(peor)}</b> (+${Math.round(peor.demora_habitual_min)}′)</div></div>`;
+// Saturación del paso = autos que cruzan por hora ÷ capacidad del control.
+// Con fila se estima el flujo; si además la fila crece, el control ya no da
+// abasto (100%). Sin fila, el paso está por debajo de su capacidad.
+function saturacion(s, u) {
+  let pct = 0, nota;
+  const prev = s && s.length > 1 ? s[s.length - 2] : null;
+  const creciendo = prev && (u.t - prev.t) < 150 * 60000 && u.cola_m - prev.cola_m >= 100;
+  if (u.flujo_autos_h_est) {
+    pct = Math.min(100, Math.round(u.flujo_autos_h_est / CAPACIDAD * 100));
+    if (creciendo && u.flujo_autos_h_est >= CAPACIDAD * 0.9) pct = 100;
+    nota = `~${fmtNum(u.flujo_autos_h_est)} de ${fmtNum(CAPACIDAD)} autos/h${creciendo ? ' · la fila crece' : ''}`;
+  } else {
+    nota = 'Sin fila: el control atiende más rápido de lo que llegan los autos';
+  }
+  const nivel = pct >= 90 ? ['--critical', 'Saturado'] : pct >= 60 ? ['--warning', 'Alta'] : pct > 0 ? ['--good', 'Media'] : ['--good', 'Baja'];
+  return `<div class="sat" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Saturación del paso">
+    <div class="sat-h"><span>Saturación del paso</span><b>${pct}% · ${nivel[1]}</b></div>
+    <div class="sat-bar"><i style="width:${Math.max(pct, 1)}%;background:var(${nivel[0]})"></i>
+      <span class="tick" style="left:60%"></span><span class="tick" style="left:90%"></span></div>
+    <div class="sat-n">${nota}</div></div>`;
 }
 
 function estado(min) {
@@ -295,7 +294,6 @@ async function cargar() {
     const r = await fetch('datos.json?_=' + Date.now(), { cache: 'no-store' });
     if (!r.ok) throw new Error(r.status);
     DATA = await r.json();
-    try { const rp = await fetch('pronostico.json?_=' + Date.now(), { cache: 'no-store' }); PRON = rp.ok ? await rp.json() : null; } catch (e) { PRON = null; }
     pruebas = DATA.pruebas || [];
     pasos = (DATA.pasos || [...new Set(DATA.mediciones.map(m => m.paso))]).filter(p => !pruebas.includes(p));
     render();
