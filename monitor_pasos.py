@@ -55,6 +55,21 @@ PASOS = {
 }
 
 METROS_POR_AUTO = 7.0   # largo promedio auto + espacio en fila
+PERSONAS_POR_AUTO = 3.0 # ocupación promedio supuesta (para estimar personas)
+
+# Capacidad máxima de atención en el control (autos/hora). Sirve de techo al
+# flujo estimado, que con filas cortas puede dar números irreales.
+# Colón–Paysandú: operativo del Papa con 12-16 cabinas y hasta ~2.000
+# personas/hora informadas => ~650 autos/h. Para los otros pasos se usa el
+# mismo valor como techo genérico (sin dato propio).
+CAPACIDAD_AUTOS_H = {
+    "Colón – Paysandú": 650,
+    "Gualeguaychú – Fray Bentos": 650,
+    "Concordia – Salto": 650,
+}
+# Fila mínima para considerar que hay "fila de control" y estimar el flujo
+FILA_MIN_M = 200       # ~30 autos
+DEMORA_MIN_MIN = 5
 CARRILES = 1            # carriles de fila (ajustar según el paso)
 CSV_PATH = "pasos.csv"
 JSON_PATH = "datos.json"
@@ -86,7 +101,7 @@ def consultar(origen, destino, api_key):
         return json.load(r)
 
 
-def analizar(resp):
+def analizar(resp, paso=None):
     ruta = resp["routes"][0]
     sm = ruta["summary"]
     demora_min = max(0.0, sm.get("trafficDelayInSeconds", 0) / 60)
@@ -120,10 +135,10 @@ def analizar(resp):
     return resultado(demora_min, cola_max,
                      viaje_s=sm.get("travelTimeInSeconds"),
                      habitual_s=sm.get("historicTrafficTravelTimeInSeconds"),
-                     libre_s=sm.get("noTrafficTravelTimeInSeconds"))
+                     libre_s=sm.get("noTrafficTravelTimeInSeconds"), paso=paso)
 
 
-def resultado(demora_min, cola_m, viaje_s=None, habitual_s=None, libre_s=None):
+def resultado(demora_min, cola_m, viaje_s=None, habitual_s=None, libre_s=None, paso=None):
     """
     demora_min       = viaje actual - viaje sin tráfico (ruta vacía)
     extra_habitual   = viaje actual - viaje HABITUAL para este día y hora
@@ -131,12 +146,19 @@ def resultado(demora_min, cola_m, viaje_s=None, habitual_s=None, libre_s=None):
     indice_habitual  = viaje actual / viaje habitual  (1.0 = normal, 1.5 = 50% más lento)
     """
     autos = cola_m / METROS_POR_AUTO * CARRILES
-    flujo = autos / (demora_min / 60) if demora_min >= 1 else None
+    # Autos que cruzan por hora (ley de Little: autos en fila / tiempo de espera).
+    # Solo se puede estimar cuando hay fila; sin fila, el flujo es menor a la capacidad.
+    hay_fila = demora_min >= DEMORA_MIN_MIN and cola_m >= FILA_MIN_M
+    flujo = autos / (demora_min / 60) if hay_fila else None
+    cap = CAPACIDAD_AUTOS_H.get(paso) if paso else None
+    if flujo and cap:
+        flujo = min(flujo, cap)
     r = {
         "demora_min": round(demora_min, 1),
         "cola_m": round(cola_m),
         "autos_cola_est": round(autos),
         "flujo_autos_h_est": round(flujo) if flujo else None,
+        "personas_h_est": round(flujo * PERSONAS_POR_AUTO) if flujo else None,
         "viaje_min": None, "habitual_min": None, "libre_min": None,
         "extra_habitual_min": None, "indice_habitual": None,
     }
@@ -165,7 +187,7 @@ def simular(nombre, cuando):
     libre = {"Gualeguaychú – Fray Bentos": 40, "Colón – Paysandú": 15, "Concordia – Salto": 30}[nombre]
     habitual = libre + base * curva * 0.8
     return resultado(demora, max(0.0, cola), viaje_s=(libre + demora) * 60,
-                     habitual_s=habitual * 60, libre_s=libre * 60)
+                     habitual_s=habitual * 60, libre_s=libre * 60, paso=nombre)
 
 
 # ---------------------------------------------------------------- Guardado
@@ -202,7 +224,7 @@ def medir(api_key, demo=False, cuando=None, silencio=False):
     filas = []
     for nombre, (ar, uy) in PASOS.items():
         try:
-            res = simular(nombre, cuando) if demo else analizar(consultar(ar, uy, api_key))
+            res = simular(nombre, cuando) if demo else analizar(consultar(ar, uy, api_key), nombre)
         except Exception as e:  # noqa: BLE001
             print(f"[error] {nombre}: {e}", file=sys.stderr)
             continue

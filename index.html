@@ -73,6 +73,8 @@
   .vs small { color: var(--text-secondary); font-size: 12px; }
   .vs-i { font-size: 11px; line-height: 20px; width: 18px; text-align: center; flex: none; border-radius: 4px; }
   .vs-up .vs-i { color: var(--critical); } .vs-down .vs-i { color: var(--good); } .vs-eq .vs-i { color: var(--text-muted); }
+  .cruces { margin-top: 10px; font-size: 13.5px; color: var(--text-primary); }
+  .cruces small { color: var(--text-secondary); font-size: 12px; }
   .maplink { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); text-decoration: none; font-size: 13px; font-weight: 600; }
   .maplink:hover { background: var(--grid); }
 
@@ -126,7 +128,7 @@
     <div class="table-wrap" id="tableWrap"></div>
   </section>
 
-  <p class="note">Estimaciones con el tráfico en tiempo real de TomTom. Demora = viaje ahora − viaje sin tráfico. “vs. normal” = viaje ahora − viaje habitual para ese día y hora, según el historial de TomTom; autos en fila ≈ largo de la cola ÷ 7 m. Son indicadores, no conteos oficiales. Se actualiza solo. Datos de tráfico © TomTom.</p>
+  <p class="note">Estimaciones con el tráfico en tiempo real de TomTom. Demora = viaje ahora − viaje sin tráfico. “vs. normal” = viaje ahora − viaje habitual para ese día y hora, según el historial de TomTom; autos en fila ≈ largo de la cola ÷ 7 m; autos que cruzan por hora ≈ autos en fila ÷ demora (solo con fila de más de 200 m y 5 min; techo de 650/h según la capacidad informada del operativo en Colón–Paysandú); personas ≈ autos × 3. Son indicadores, no conteos oficiales. Se actualiza solo. Datos de tráfico © TomTom.</p>
 </div>
 </div>
 
@@ -150,6 +152,22 @@ let DATA = null, pasos = [];
 const css = v => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(v).trim();
 const fmtHora = d => d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 const fmtNum = n => n == null ? '—' : Number(n).toLocaleString('es-AR');
+
+// Autos que cruzaron hoy (estimado): suma flujo × tiempo entre mediciones.
+// Solo cuenta los períodos con fila, que es cuando el flujo se puede estimar.
+function resumenCruces(p, s, u) {
+  const hoy = new Date().toDateString();
+  let autos = 0, conFila = 0;
+  for (let k = 1; k < s.length; k++) {
+    const a = s[k - 1], b = s[k];
+    if (b.t.toDateString() !== hoy || !a.flujo_autos_h_est) continue;
+    const dt = Math.min(1, (b.t - a.t) / 3600e3);
+    autos += a.flujo_autos_h_est * dt; conFila += dt;
+  }
+  const personas = u.personas_h_est ? ` · ~${fmtNum(u.personas_h_est)} personas/h` : '';
+  if (!autos) return `<div class="cruces"><small>${u.flujo_autos_h_est ? 'Cruzando ahora' + personas + '. ' : ''}Hoy todavía no hubo fila: los cruces solo se pueden estimar cuando se forma fila.</small></div>`;
+  return `<div class="cruces">Hoy cruzaron <b>~${fmtNum(Math.round(autos / 10) * 10)} autos</b> (~${fmtNum(Math.round(autos * 3 / 100) * 100)} personas) en ${conFila.toLocaleString('es-AR', {maximumFractionDigits: 1})} h con fila${personas}<br><small>Estimado. No incluye las horas sin fila.</small></div>`;
+}
 
 // Compara el viaje de ahora contra el viaje habitual para este día y hora (historial de TomTom)
 function comparacion(u) {
@@ -221,8 +239,9 @@ function render() {
       <div class="meta">
         <div>Cola<b>${u.cola_m >= 1000 ? (u.cola_m/1000).toLocaleString('es-AR',{maximumFractionDigits:1}) + ' km' : fmtNum(u.cola_m) + ' m'}</b></div>
         <div>Autos en fila<b>~${fmtNum(u.autos_cola_est)}</b></div>
-        <div>Flujo<b>${u.flujo_autos_h_est ? '~' + fmtNum(u.flujo_autos_h_est) + '/h' : '—'}</b></div>
+        <div>Cruzan ahora<b>${u.flujo_autos_h_est ? '~' + fmtNum(u.flujo_autos_h_est) + ' autos/h' : 'sin fila'}</b></div>
       </div>
+      ${resumenCruces(p, s, u)}
       ${linkMaps(p) ? `<a class="maplink" href="${linkMaps(p)}" target="_blank" rel="noopener">Ver en Google Maps ↗</a>` : ''}
       </article>`;
   }).join('');
@@ -324,7 +343,7 @@ function dibujarGrafico(series) {
 function dibujarTabla() {
   const filas = [...DATA.mediciones].sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 300);
   document.getElementById('tableWrap').innerHTML = `<table><thead><tr>
-    <th>Hora</th><th>Paso</th><th>Demora (min)</th><th>vs. normal</th><th>Cola (m)</th><th>Autos en fila</th><th>Flujo (autos/h)</th></tr></thead><tbody>` +
+    <th>Hora</th><th>Paso</th><th>Demora (min)</th><th>vs. normal</th><th>Cola (m)</th><th>Autos en fila</th><th>Cruzan (autos/h)</th></tr></thead><tbody>` +
     filas.map(f => `<tr><td>${fmtHora(new Date(f.fecha))}</td><td>${f.paso}</td><td>${f.demora_min.toLocaleString('es-AR')}</td><td>${f.extra_habitual_min == null ? '—' : (f.extra_habitual_min > 0 ? '+' : '') + f.extra_habitual_min.toLocaleString('es-AR') + ' min'}</td>
       <td>${fmtNum(f.cola_m)}</td><td>~${fmtNum(f.autos_cola_est)}</td><td>${f.flujo_autos_h_est ? '~' + fmtNum(f.flujo_autos_h_est) : '—'}</td></tr>`).join('') +
     '</tbody></table>';
