@@ -1,40 +1,13 @@
 name: Publicar página
 
+# La página ahora se publica sola desde la rama main (Settings → Pages →
+# "Deploy from a branch"), y los datos se leen directo del repositorio.
+# Este workflow queda solo para que el proceso de medición no falle al llamarlo.
 on:
   workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false   # cancelar una publicación a medias puede trabar las siguientes
 
 jobs:
   publicar:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - run: mkdir -p _site && cp index.html datos.json _site/ && (cp geo.json _site/ || true) && (cp tmda.json _site/ || true)
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-      - id: deploy
-        uses: actions/deploy-pages@v4
-        continue-on-error: true
-        with:
-          timeout: 300000
-      - name: Reintentar si GitHub Pages falló
-        if: steps.deploy.outcome == 'failure'
-        run: sleep 60
-      - id: deploy2
-        if: steps.deploy.outcome == 'failure'
-        uses: actions/deploy-pages@v4
-        with:
-          timeout: 300000
+      - run: echo "GitHub Pages publica la rama main automáticamente."
