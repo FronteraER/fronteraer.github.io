@@ -10,6 +10,8 @@ Cada hora, GitHub Actions consulta el tráfico en TomTom (Routing API, gratis),
 calcula demora, largo de la cola y autos estimados, guarda el resultado en
 `datos.json` / `pasos.csv` y vuelve a publicar la página en GitHub Pages.
 
+> Página: https://fronteraer.github.io
+
 > Son estimaciones a partir del tráfico de TomTom, no conteos oficiales. Datos de tráfico © TomTom.
 
 ## Archivos
