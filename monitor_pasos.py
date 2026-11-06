@@ -55,6 +55,43 @@ PASOS = {
 }
 PRUEBAS = set()   # rutas de prueba (se muestran aparte en el dashboard)
 
+# Rutas de acceso a las misas del Papa en Argentina. Se miden solo en el
+# sentido hacia el evento. Destinos:
+#   Córdoba: Escuela de Aviación Militar (mar. 10/11, misa 10 h)
+#   Luján:   Basílica de Nuestra Señora de Luján (mié. 11/11, misa 10 h)
+CORDOBA = (-31.4400, -64.2550)
+LUJAN = (-34.5636, -59.1208)
+RUTAS_EVENTO = {
+    "cordoba": {
+        "RN 9 sur · desde Oncativo":        ((-31.9135, -63.6820), CORDOBA),
+        "RN 19 · desde Río Primero":        ((-31.3299, -63.6194), CORDOBA),
+        "RN 9 norte · desde Jesús María":   ((-30.9817, -64.0942), CORDOBA),
+        "RN 20 · desde Villa Carlos Paz":   ((-31.4241, -64.4978), CORDOBA),
+        "RN 36 · desde Almafuerte":         ((-32.1925, -64.2556), CORDOBA),
+    },
+    "lujan": {
+        "Acceso Oeste · desde Liniers":     ((-34.6416, -58.5300), LUJAN),
+        "RN 8 / RP 6 · desde Pilar":        ((-34.4587, -58.9142), LUJAN),
+        "RN 5 · desde Mercedes":            ((-34.6515, -59.4307), LUJAN),
+        "RN 7 · desde San Andrés de Giles": ((-34.4467, -59.4453), LUJAN),
+        "RP 6 · desde Cañuelas":            ((-35.0517, -58.7600), LUJAN),
+    },
+}
+GRUPOS = [
+    {"id": "uruguay", "titulo": "Pasos a Uruguay", "detalle": "Visita del Papa a Paysandú · sáb. 7"},
+    {"id": "cordoba", "titulo": "Córdoba", "detalle": "Misa en la Escuela de Aviación Militar · mar. 10, 10 h"},
+    {"id": "lujan", "titulo": "Luján", "detalle": "Misa en la Basílica · mié. 11, 10 h"},
+]
+GRUPO = {n: "uruguay" for n in PASOS}
+for g, rutas in RUTAS_EVENTO.items():
+    for n, pts in rutas.items():
+        PASOS[n] = pts
+        GRUPO[n] = g
+
+
+def sentidos_de(nombre):
+    return SENTIDOS if GRUPO.get(nombre) == "uruguay" else ["ida"]
+
 # Sentidos que se miden. Los puntos de PASOS están en sentido AR->UY;
 # para UY->AR se recorren al revés.
 SENTIDOS = ["AR->UY", "UY->AR"]
@@ -93,7 +130,7 @@ def distancia_m(a, b):
 
 
 def puntos_de(nombre, sentido):
-    pts = PASOS[nombre]
+    pts = PASOS[nombre]   # "ida" usa los puntos tal cual
     return tuple(reversed(pts)) if sentido == "UY->AR" else pts
 
 
@@ -153,10 +190,12 @@ def analizar(resp, paso=None):
     if not pts:  # sin geometría: usar el total que informa TomTom
         cola_max = sm.get("trafficLengthInMeters", 0)
 
-    return resultado(demora_min, cola_max,
+    r = resultado(demora_min, cola_max,
                      viaje_s=sm.get("travelTimeInSeconds"),
                      habitual_s=sm.get("historicTrafficTravelTimeInSeconds"),
                      libre_s=sm.get("noTrafficTravelTimeInSeconds"), paso=paso)
+    r["largo_km"] = round(sm.get("lengthInMeters", 0) / 1000, 1)
+    return r
 
 
 def resultado(demora_min, cola_m, viaje_s=None, habitual_s=None, libre_s=None, paso=None):
@@ -169,9 +208,11 @@ def resultado(demora_min, cola_m, viaje_s=None, habitual_s=None, libre_s=None, p
     autos = cola_m / METROS_POR_AUTO * CARRILES
     # Autos que cruzan por hora (ley de Little: autos en fila / tiempo de espera).
     # Solo se puede estimar cuando hay fila; sin fila, el flujo es menor a la capacidad.
-    hay_fila = demora_min >= DEMORA_MIN_MIN and cola_m >= FILA_MIN_M
-    flujo = autos / (demora_min / 60) if hay_fila else None
     cap = CAPACIDAD_AUTOS_H.get(paso) if paso else None
+    # El flujo por ley de Little solo tiene sentido en un control con fila
+    # (pasos fronterizos); en rutas abiertas no se estima.
+    hay_fila = demora_min >= DEMORA_MIN_MIN and cola_m >= FILA_MIN_M and cap
+    flujo = autos / (demora_min / 60) if hay_fila else None
     if flujo and cap:
         flujo = min(flujo, cap)
     r = {
@@ -200,7 +241,7 @@ def simular(nombre, cuando, sentido="AR->UY"):
     """Demora con forma diaria realista: picos a la mañana y fin de tarde."""
     base = {"Gualeguaychú – Fray Bentos": 18,
             "Colón – Paysandú": 9,
-            "Concordia – Salto": 5}.get(nombre, 12)
+            "Concordia – Salto": 5}.get(nombre, 6)
     h = cuando.hour + cuando.minute / 60
     curva = (math.exp(-((h - 10) ** 2) / 6) + 0.8 * math.exp(-((h - 18) ** 2) / 5))
     if sentido == "UY->AR":   # la vuelta, con el pico más tarde
@@ -208,7 +249,7 @@ def simular(nombre, cuando, sentido="AR->UY"):
     demora = max(0.0, base * curva + random.gauss(0, base * 0.05))
     cola = demora * 55 + random.gauss(0, 30)
     libre = {"Gualeguaychú – Fray Bentos": 40, "Colón – Paysandú": 15,
-             "Concordia – Salto": 30}.get(nombre, 25)
+             "Concordia – Salto": 30}.get(nombre, 50)
     habitual = libre + base * curva * 0.8
     return resultado(demora, max(0.0, cola), viaje_s=(libre + demora) * 60,
                      habitual_s=habitual * 60, libre_s=libre * 60, paso=nombre)
@@ -239,6 +280,9 @@ def guardar(filas):
     datos["pasos"] = list(PASOS)
     datos["pruebas"] = sorted(PRUEBAS)
     datos["sentidos"] = SENTIDOS
+    datos["grupos"] = GRUPOS
+    datos["grupo_de"] = GRUPO
+    datos["coords"] = {n: [f"{p[0]},{p[1]}" for p in pts] for n, pts in PASOS.items()}
     tmp = JSON_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(datos, f, ensure_ascii=False)
@@ -249,7 +293,7 @@ def medir(api_key, demo=False, cuando=None, silencio=False):
     cuando = cuando or ahora()
     filas = []
     for nombre in PASOS:
-        for sentido in SENTIDOS:
+        for sentido in sentidos_de(nombre):
             try:
                 if demo:
                     res = simular(nombre, cuando, sentido)
@@ -268,9 +312,10 @@ def medir(api_key, demo=False, cuando=None, silencio=False):
                 print(f"[error] {nombre} {sentido}: {e}", file=sys.stderr)
                 continue
             filas.append({"fecha": cuando.isoformat(timespec="seconds"),
-                          "paso": nombre, "sentido": sentido, **res})
+                          "paso": nombre, "sentido": sentido,
+                          "grupo": GRUPO.get(nombre, "uruguay"), **res})
             if not silencio:
-                print(f"{cuando:%H:%M}  {nombre:28} {sentido}  demora {res['demora_min']:>5} min  "
+                print(f"{cuando:%H:%M}  {nombre:34} {sentido:6} {res.get('largo_km', '')} km  demora {res['demora_min']:>5} min  "
                       f"cola {res['cola_m']:>5} m  ~{res['autos_cola_est']} autos")
     guardar(filas)
 

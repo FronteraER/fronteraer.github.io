@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:,">
-<title>Pasos Entre Ríos ↔ Uruguay · Demoras en vivo</title>
+<title>Tránsito en vivo · visita del Papa</title>
 <style>
   .viz-root {
     color-scheme: light;
@@ -19,6 +19,8 @@
     --series-1: #2a78d6;
     --series-2: #eb6834;
     --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
     --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
   }
   @media (prefers-color-scheme: dark) {
@@ -27,7 +29,7 @@
       --page: #111110; --surface-1: #1a1a19;
       --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
       --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
-      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181;
     }
   }
   :root[data-theme="dark"] .viz-root {
@@ -35,7 +37,7 @@
     --page: #111110; --surface-1: #1a1a19;
     --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
     --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
-    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181;
   }
 
   * { box-sizing: border-box; }
@@ -81,6 +83,8 @@
   .seg { display: inline-flex; gap: 4px; margin-top: 12px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1); flex-wrap: wrap; }
   .seg button { border: 0; background: transparent; color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 7px; cursor: pointer; }
   .seg button[aria-selected="true"] { background: var(--text-primary); color: var(--surface-1); }
+  .seg.grupos { margin: 12px 0 6px; }
+  .seg.grupos button { font-size: 14px; padding: 7px 14px; }
   .tend { margin-top: 10px; font-size: 13px; color: var(--text-primary); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
   .tend small { color: var(--text-secondary); font-size: 12px; }
   .sat { margin-top: 14px; }
@@ -132,9 +136,10 @@
 <div class="wrap">
   <header>
     <div>
-      <h1>Pasos Entre Ríos ↔ Uruguay</h1>
-      <div class="sub" id="subtitulo">Demora estimada para cruzar</div>
-      <div class="seg" role="tablist" aria-label="Sentido">
+      <h1>Tránsito en vivo · visita del Papa</h1>
+      <div class="seg grupos" role="tablist" aria-label="Destino" id="grupos"></div>
+      <div class="sub" id="subtitulo">Demora estimada</div>
+      <div class="seg" role="tablist" aria-label="Sentido" id="sentidos">
         <button role="tab" data-s="AR->UY" aria-selected="true">Ida · AR → UY</button>
         <button role="tab" data-s="UY->AR" aria-selected="false">Vuelta · UY → AR</button>
       </div>
@@ -157,7 +162,7 @@
     <div class="table-wrap" id="tableWrap"></div>
   </section>
 
-  <p class="note">Estimaciones con el tráfico en tiempo real de TomTom. Demora = viaje ahora − viaje sin tráfico. “vs. normal” = viaje ahora − viaje habitual para ese día y hora, según el historial de TomTom; autos en fila ≈ largo de la cola ÷ 7 m; autos que cruzan por hora ≈ autos en fila ÷ demora (solo con fila de más de 200 m y 5 min; techo de 650/h según la capacidad informada del operativo en Colón–Paysandú); personas ≈ autos × 3. Tendencia = cambio vs. la medición anterior. Saturación = autos que cruzan por hora ÷ 650 (capacidad informada del control); 100% si además la fila crece. Son indicadores, no conteos oficiales. Se actualiza solo. Datos de tráfico © TomTom.</p>
+  <p class="note">Estimaciones con el tráfico en tiempo real de TomTom. Demora = viaje ahora − viaje sin tráfico. “vs. normal” = viaje ahora − viaje habitual para ese día y hora, según el historial de TomTom; autos en fila ≈ largo de la cola ÷ 7 m; autos que cruzan por hora ≈ autos en fila ÷ demora (solo con fila de más de 200 m y 5 min; techo de 650/h según la capacidad informada del operativo en Colón–Paysandú); personas ≈ autos × 3. Tendencia = cambio vs. la medición anterior. Saturación = autos que cruzan por hora ÷ 650 (capacidad informada del control); 100% si además la fila crece. Rutas a Córdoba y Luján: congestión = cuánto más tarda el viaje que con la ruta libre (100% = el doble). Son indicadores, no conteos oficiales. Se actualiza solo. Datos de tráfico © TomTom.</p>
 </div>
 </div>
 
@@ -165,7 +170,11 @@
 const SERIES = ['--series-1', '--series-2', '--series-3'];
 // El color sigue al paso, no a su posición
 const COLOR = { 'Gualeguaychú – Fray Bentos': '--series-1', 'Colón – Paysandú': '--series-2', 'Concordia – Salto': '--series-3' };
-const col = p => COLOR[p] || SERIES[pasos.indexOf(p) % 3];
+const SERIES5 = ['--series-1', '--series-2', '--series-3', '--series-4', '--series-5'];
+const col = p => COLOR[p] || SERIES5[Math.max(0, pasos.indexOf(p)) % 5];
+let GRUPO_SEL = 'uruguay';
+const grupoDe = p => (DATA && DATA.grupo_de && DATA.grupo_de[p]) || 'uruguay';
+const esRuta = () => GRUPO_SEL !== 'uruguay';
 const PRINCIPAL = 'Colón – Paysandú';
 // Mismos puntos que usa monitor_pasos.py, para comparar en Google Maps
 const RUTAS = {
@@ -173,14 +182,14 @@ const RUTAS = {
   'Colón – Paysandú':           ['-32.2234,-58.1440', '-32.3171,-58.0807'],
   'Concordia – Salto':          ['-31.3929,-58.0209', '-31.3833,-57.9667'],
 };
-const linkMaps = p => { const r = RUTAS[p]; if (!r) return null; const [o, d] = SENTIDO === 'UY->AR' ? [r[1], r[0]] : [r[0], r[1]];
+const linkMaps = p => { const r = (DATA && DATA.coords && DATA.coords[p]) || RUTAS[p]; if (!r) return null; const [o, d] = SENTIDO === 'UY->AR' ? [r[1], r[0]] : [r[0], r[1]];
   return `https://www.google.com/maps/dir/?api=1&origin=${o}&destination=${d}&travelmode=driving`; };
 const UMBRAL = { moderada: 5, alta: 20 };   // minutos
 const REFRESCO_MS = 30000;
 let DATA = null, PRON = null, pasos = [], pruebas = [], SENTIDO = 'AR->UY';
 const CAPACIDAD = 650;   // autos/h, techo según el operativo en Colón–Paysandú
 const sentidoDe = m => m.sentido || 'AR->UY';
-const nombreSentido = (p, sen) => sen === 'UY->AR' ? p.split(' – ').reverse().join(' → ') : p.replace(' – ', ' → ');
+const nombreSentido = (p, sen) => grupoDe(p) !== 'uruguay' ? p : sen === 'UY->AR' ? p.split(' – ').reverse().join(' → ') : p.replace(' – ', ' → ');
 
 const css = v => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(v).trim();
 const fmtHora = d => d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
@@ -218,28 +227,59 @@ function tarjeta(p, s, prueba = false) {
   const u = s && s[s.length - 1];
   if (!u) return '';
   const e = estado(u.demora_min);
+  const ruta = grupoDe(p) !== 'uruguay';
   const principal = p === PRINCIPAL;
-  const tz = p.includes('Tokio') ? ['Asia/Tokyo', 'Tokio'] : p.includes('Bengaluru') ? ['Asia/Kolkata', 'Bengaluru'] : null;
-  const horaLocal = tz ? new Date(u.fecha).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', timeZone: tz[0] }) + ' hora de ' + tz[1] : '';
-  const tag = principal ? `<div class="tag">Principal · visita del Papa sáb. 7${SENTIDO === 'UY->AR' ? ' · vuelta' : ''}</div>`
-            : prueba ? `<div class="tag">Prueba · medido a las ${horaLocal}</div>` : '';
-  const ultimas = prueba ? `<div class="cruces"><small>Últimas mediciones (demora / vs. normal): ${s.slice(-6).map(m => `${fmtHora(m.t)} ${Math.round(m.demora_min)}′ / ${m.extra_habitual_min == null ? '—' : (m.extra_habitual_min > 0 ? '+' : '') + Math.round(m.extra_habitual_min) + '′'}`).join(' · ')}</small></div>` : '';
-  return `<article class="card tile${principal ? ' principal' : ''}${prueba ? ' prueba' : ''}">
+  const tag = principal ? `<div class="tag">Principal · visita del Papa sáb. 7${SENTIDO === 'UY->AR' ? ' · vuelta' : ''}</div>` : '';
+  const km = v => v >= 1000 ? (v / 1000).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + ' km' : fmtNum(v) + ' m';
+  const meta = ruta
+    ? `<div>Viaje ahora<b>${fmtNum(Math.round(u.viaje_min))} min</b></div>
+       <div>Normal<b>${u.habitual_min == null ? '—' : fmtNum(Math.round(u.habitual_min)) + ' min'}</b></div>
+       <div>Embotellado<b>${km(u.cola_m)}</b></div>`
+    : `<div>Cola<b>${km(u.cola_m)}</b></div>
+       <div>Autos en fila<b>~${fmtNum(u.autos_cola_est)}</b></div>
+       <div>Cruzan ahora<b>${u.flujo_autos_h_est ? '~' + fmtNum(u.flujo_autos_h_est) + ' autos/h' : 'sin fila'}</b></div>`;
+  return `<article class="card tile${principal ? ' principal' : ''}">
       ${tag}
-      <div class="tile-name"><span class="swatch" style="background:var(${prueba ? '--text-muted' : col(p)})"></span>${prueba ? p : nombreSentido(p, SENTIDO)}</div>
+      <div class="tile-name"><span class="swatch" style="background:var(${col(p)})"></span>${nombreSentido(p, SENTIDO)}${ruta && u.largo_km ? ` <small style="font-weight:400;color:var(--text-muted)">· ${fmtNum(Math.round(u.largo_km))} km</small>` : ''}</div>
       <div class="big">${Math.round(u.demora_min)}<small>min</small></div>
       <div class="status"><svg width="16" height="16" viewBox="0 0 16 16" style="color:var(${e.color})">${e.icon}</svg>${e.label}</div>
-      ${prueba ? '' : saturacion(s, u)}
+      ${ruta ? congestion(u) : saturacion(s, u)}
       ${comparacion(u)}
       ${tendencia(s)}
-      <div class="meta">
-        <div>${prueba ? 'Tramos lentos' : 'Cola'}<b>${u.cola_m >= 1000 ? (u.cola_m/1000).toLocaleString('es-AR',{maximumFractionDigits:1}) + ' km' : fmtNum(u.cola_m) + ' m'}</b></div>
-        ${prueba ? '' : `<div>Autos en fila<b>~${fmtNum(u.autos_cola_est)}</b></div>
-        <div>Cruzan ahora<b>${u.flujo_autos_h_est ? '~' + fmtNum(u.flujo_autos_h_est) + ' autos/h' : 'sin fila'}</b></div>`}
-      </div>
-      ${prueba ? ultimas : resumenCruces(p, s, u)}
+      <div class="meta">${meta}</div>
+      ${ruta ? '' : resumenCruces(p, s, u)}
       ${linkMaps(p) ? `<a class="maplink" href="${linkMaps(p)}" target="_blank" rel="noopener">Ver en Google Maps ↗</a>` : ''}
       </article>`;
+}
+
+// Congestión de una ruta: cuánto más tarda el viaje que sin tráfico.
+// 0% = ruta libre; 100% = el viaje tarda el doble (o más).
+function congestion(u) {
+  if (!u.viaje_min || !u.libre_min) return '';
+  const pct = Math.max(0, Math.min(100, Math.round((u.viaje_min / u.libre_min - 1) * 100)));
+  const nivel = pct >= 60 ? ['--critical', 'Muy congestionada'] : pct >= 25 ? ['--warning', 'Congestionada'] : pct >= 10 ? ['--good', 'Algo lenta'] : ['--good', 'Libre'];
+  return `<div class="sat" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Congestión de la ruta">
+    <div class="sat-h"><span>Congestión de la ruta</span><b>${pct}% · ${nivel[1]}</b></div>
+    <div class="sat-bar"><i style="width:${Math.max(pct, 1)}%;background:var(${nivel[0]})"></i>
+      <span class="tick" style="left:25%"></span><span class="tick" style="left:60%"></span></div>
+    <div class="sat-n">${pct ? `El viaje tarda ${pct}% más que con la ruta libre` : 'Tarda lo mismo que con la ruta libre'}</div></div>`;
+}
+
+// Pestañas de destino
+function armarGrupos() {
+  const cont = document.getElementById('grupos');
+  const gs = DATA.grupos || [{ id: 'uruguay', titulo: 'Pasos a Uruguay' }];
+  if (cont.dataset.n === String(gs.length)) return;
+  cont.dataset.n = gs.length;
+  cont.innerHTML = gs.map(g => `<button role="tab" data-g="${g.id}" aria-selected="${g.id === GRUPO_SEL}">${g.titulo}</button>`).join('');
+  cont.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    GRUPO_SEL = b.dataset.g;
+    SENTIDO = GRUPO_SEL === 'uruguay' ? (document.querySelector('#sentidos [aria-selected="true"]')?.dataset.s || 'AR->UY') : 'ida';
+    cont.querySelectorAll('button').forEach(x => x.setAttribute('aria-selected', x === b ? 'true' : 'false'));
+    try { location.hash = GRUPO_SEL; } catch (e) {}
+    pasos = DATA.pasos.filter(p => grupoDe(p) === GRUPO_SEL);
+    render();
+  }));
 }
 
 // Cambio respecto de la medición anterior
@@ -295,7 +335,8 @@ async function cargar() {
     if (!r.ok) throw new Error(r.status);
     DATA = await r.json();
     pruebas = DATA.pruebas || [];
-    pasos = (DATA.pasos || [...new Set(DATA.mediciones.map(m => m.paso))]).filter(p => !pruebas.includes(p));
+    armarGrupos();
+    pasos = (DATA.pasos || [...new Set(DATA.mediciones.map(m => m.paso))]).filter(p => !pruebas.includes(p) && grupoDe(p) === GRUPO_SEL);
     render();
   } catch (e) {
     document.getElementById('updated').textContent = 'Sin datos todavía — ¿está corriendo el script?';
@@ -318,7 +359,11 @@ function render() {
     return;
   }
   const series = porPaso();
-  document.getElementById('subtitulo').textContent = 'Demora estimada para cruzar, sentido ' + (SENTIDO === 'UY->AR' ? 'Uruguay → Argentina' : 'Argentina → Uruguay');
+  const g = (DATA.grupos || []).find(x => x.id === GRUPO_SEL);
+  document.getElementById('subtitulo').textContent = esRuta()
+    ? `${g ? g.detalle : ''} · demora en las rutas de acceso, sentido hacia la misa`
+    : 'Demora estimada para cruzar, sentido ' + (SENTIDO === 'UY->AR' ? 'Uruguay → Argentina' : 'Argentina → Uruguay') + (g ? ' · ' + g.detalle : '');
+  document.getElementById('sentidos').style.display = esRuta() ? 'none' : '';
   const upd = new Date(DATA.actualizado);
   const mins = Math.round((Date.now() - upd) / 60000);
   document.getElementById('updated').textContent =
@@ -374,7 +419,7 @@ function dibujarGrafico(series) {
     g += `<path d="${d}" fill="none" stroke="var(${col(p)})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
     const u = s[s.length - 1];
     g += `<circle cx="${x(+u.t)}" cy="${y(u.demora_min)}" r="4" fill="var(${col(p)})" stroke="var(--surface-1)" stroke-width="2"/>`;
-    ends.push({ y: y(u.demora_min), label: p.split(' – ')[0], val: Math.round(u.demora_min), i });
+    ends.push({ y: y(u.demora_min), label: esRuta() ? p.split(' · ')[0] : p.split(' – ')[0], val: Math.round(u.demora_min), i });
   });
 
   // Etiquetas directas al final de cada línea, sin superponerse
@@ -444,9 +489,11 @@ document.getElementById('toggle').addEventListener('click', e => {
 let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => DATA && dibujarGrafico(porPaso()), 150); });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => DATA && render());
 
-document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+// Abrir directo una pestaña con #cordoba o #lujan
+if (['cordoba', 'lujan', 'uruguay'].includes(location.hash.slice(1))) { GRUPO_SEL = location.hash.slice(1); if (GRUPO_SEL !== 'uruguay') SENTIDO = 'ida'; }
+document.querySelectorAll('#sentidos button').forEach(b => b.addEventListener('click', () => {
   SENTIDO = b.dataset.s;
-  document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-selected', x === b ? 'true' : 'false'));
+  document.querySelectorAll('#sentidos button').forEach(x => x.setAttribute('aria-selected', x === b ? 'true' : 'false'));
   if (DATA) render();
 }));
 

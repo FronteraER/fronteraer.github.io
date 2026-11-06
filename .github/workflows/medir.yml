@@ -36,7 +36,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           FIN=$(( $(date +%s) + 5*3600 + 30*60 ))
-          FIN_EVENTO=$(date -d '2026-11-09T00:00:00-03:00' +%s)
+          FIN_EVENTO=$(date -d '2026-11-12T00:00:00-03:00' +%s)   # hasta después de Luján
           while :; do
             python3 monitor_pasos.py --una-vez || echo "La medición falló; sigo"
             for f in datos.json pasos.csv; do [ -f "$f" ] && git add "$f"; done
