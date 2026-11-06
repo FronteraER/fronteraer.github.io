@@ -476,12 +476,25 @@ function estado(min) {
     icon: '<circle cx="8" cy="8" r="7" fill="currentColor"/><path d="m5 8.2 2 2 4-4.2" stroke="var(--surface-1)" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' };
 }
 
+// Los datos se leen directo del repositorio (se actualizan con cada medición),
+// así la página no depende de que GitHub Pages publique a tiempo. Si eso
+// falla, se usa la copia publicada junto a la página.
+const RAW = 'https://raw.githubusercontent.com/FronteraER/fronteraer.github.io/main/';
+async function traer(nombre) {
+  for (const base of [RAW, '']) {
+    try {
+      const r = await fetch(base + nombre + '?_=' + Date.now(), { cache: 'no-store' });
+      if (r.ok) return await r.json();
+    } catch (e) {}
+  }
+  return null;
+}
 async function cargar() {
   try {
-    const r = await fetch('datos.json?_=' + Date.now(), { cache: 'no-store' });
-    if (!r.ok) throw new Error(r.status);
-    DATA = await r.json();
-    try { const rg = await fetch('geo.json?_=' + Date.now(), { cache: 'no-store' }); GEO = rg.ok ? await rg.json() : GEO; } catch (e) {}
+    const d = await traer('datos.json');
+    if (!d) throw new Error('sin datos');
+    DATA = d;
+    GEO = (await traer('geo.json')) || GEO;
     if (!TMDA) { try { const rt = await fetch('tmda.json', { cache: 'no-store' }); TMDA = rt.ok ? await rt.json() : null; } catch (e) {} }
     pruebas = DATA.pruebas || [];
     armarGrupos();
