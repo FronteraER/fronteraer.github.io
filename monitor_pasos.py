@@ -49,8 +49,8 @@ API_URL = "https://api.tomtom.com/routing/1/calculateRoute/{o}:{d}/json"
 # TomTom traza la ruta que cruza el puente. Para más precisión, mové el origen
 # a unos km antes del control y el destino a la salida del puente.
 PASOS = {
-    "Gualeguaychú – Fray Bentos": ((-33.0094, -58.5172), (-33.1165, -58.3107)),
     "Colón – Paysandú":           ((-32.2234, -58.1440), (-32.3171, -58.0807)),
+    "Gualeguaychú – Fray Bentos": ((-33.0094, -58.5172), (-33.1165, -58.3107)),
     "Concordia – Salto":          ((-31.3929, -58.0209), (-31.3833, -57.9667)),
 }
 
@@ -117,18 +117,38 @@ def analizar(resp):
     if not pts:  # sin geometría: usar el total que informa TomTom
         cola_max = sm.get("trafficLengthInMeters", 0)
 
-    return resultado(demora_min, cola_max)
+    return resultado(demora_min, cola_max,
+                     viaje_s=sm.get("travelTimeInSeconds"),
+                     habitual_s=sm.get("historicTrafficTravelTimeInSeconds"),
+                     libre_s=sm.get("noTrafficTravelTimeInSeconds"))
 
 
-def resultado(demora_min, cola_m):
+def resultado(demora_min, cola_m, viaje_s=None, habitual_s=None, libre_s=None):
+    """
+    demora_min       = viaje actual - viaje sin tráfico (ruta vacía)
+    extra_habitual   = viaje actual - viaje HABITUAL para este día y hora
+                       (TomTom lo calcula con su historial de tráfico)
+    indice_habitual  = viaje actual / viaje habitual  (1.0 = normal, 1.5 = 50% más lento)
+    """
     autos = cola_m / METROS_POR_AUTO * CARRILES
     flujo = autos / (demora_min / 60) if demora_min >= 1 else None
-    return {
+    r = {
         "demora_min": round(demora_min, 1),
         "cola_m": round(cola_m),
         "autos_cola_est": round(autos),
         "flujo_autos_h_est": round(flujo) if flujo else None,
+        "viaje_min": None, "habitual_min": None, "libre_min": None,
+        "extra_habitual_min": None, "indice_habitual": None,
     }
+    if viaje_s:
+        r["viaje_min"] = round(viaje_s / 60, 1)
+    if libre_s:
+        r["libre_min"] = round(libre_s / 60, 1)
+    if viaje_s and habitual_s:
+        r["habitual_min"] = round(habitual_s / 60, 1)
+        r["extra_habitual_min"] = round((viaje_s - habitual_s) / 60, 1)
+        r["indice_habitual"] = round(viaje_s / habitual_s, 2)
+    return r
 
 
 # ---------------------------------------------------------------- Modo demo
@@ -142,7 +162,10 @@ def simular(nombre, cuando):
     curva = (math.exp(-((h - 10) ** 2) / 6) + 0.8 * math.exp(-((h - 18) ** 2) / 5))
     demora = max(0.0, base * curva + random.gauss(0, base * 0.05))
     cola = demora * 55 + random.gauss(0, 30)
-    return resultado(demora, max(0.0, cola))
+    libre = {"Gualeguaychú – Fray Bentos": 40, "Colón – Paysandú": 15, "Concordia – Salto": 30}[nombre]
+    habitual = libre + base * curva * 0.8
+    return resultado(demora, max(0.0, cola), viaje_s=(libre + demora) * 60,
+                     habitual_s=habitual * 60, libre_s=libre * 60)
 
 
 # ---------------------------------------------------------------- Guardado

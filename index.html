@@ -56,7 +56,8 @@
   @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
 
   .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 14px; }
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  @media (max-width: 640px) { .tiles { grid-template-columns: 1fr; } }
   .tile { padding: 18px 20px; }
   .tile-name { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text-secondary); font-size: 14px; }
   .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
@@ -66,6 +67,12 @@
   .status svg { flex: none; }
   .meta { display: flex; gap: 18px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--grid); font-size: 13px; color: var(--text-secondary); }
   .meta b { display: block; font-size: 17px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .tile.principal { grid-column: 1 / -1; border-width: 2px; border-color: var(--series-2); }
+  .tag { display: inline-block; font-size: 12px; font-weight: 700; color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; margin-bottom: 10px; }
+  .vs { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; font-size: 13.5px; color: var(--text-primary); }
+  .vs small { color: var(--text-secondary); font-size: 12px; }
+  .vs-i { font-size: 11px; line-height: 20px; width: 18px; text-align: center; flex: none; border-radius: 4px; }
+  .vs-up .vs-i { color: var(--critical); } .vs-down .vs-i { color: var(--good); } .vs-eq .vs-i { color: var(--text-muted); }
   .maplink { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); text-decoration: none; font-size: 13px; font-weight: 600; }
   .maplink:hover { background: var(--grid); }
 
@@ -119,12 +126,16 @@
     <div class="table-wrap" id="tableWrap"></div>
   </section>
 
-  <p class="note">Estimaciones calculadas con el tráfico en tiempo real de TomTom: demora = tiempo con tráfico − tiempo sin tráfico; autos en fila ≈ largo de la cola ÷ 7 m. Son indicadores, no conteos oficiales. Se actualiza solo. Datos de tráfico © TomTom.</p>
+  <p class="note">Estimaciones con el tráfico en tiempo real de TomTom. Demora = viaje ahora − viaje sin tráfico. “vs. normal” = viaje ahora − viaje habitual para ese día y hora, según el historial de TomTom; autos en fila ≈ largo de la cola ÷ 7 m. Son indicadores, no conteos oficiales. Se actualiza solo. Datos de tráfico © TomTom.</p>
 </div>
 </div>
 
 <script>
 const SERIES = ['--series-1', '--series-2', '--series-3'];
+// El color sigue al paso, no a su posición
+const COLOR = { 'Gualeguaychú – Fray Bentos': '--series-1', 'Colón – Paysandú': '--series-2', 'Concordia – Salto': '--series-3' };
+const col = p => COLOR[p] || SERIES[pasos.indexOf(p) % 3];
+const PRINCIPAL = 'Colón – Paysandú';
 // Mismos puntos que usa monitor_pasos.py, para comparar en Google Maps
 const RUTAS = {
   'Gualeguaychú – Fray Bentos': ['-33.0094,-58.5172', '-33.1165,-58.3107'],
@@ -139,6 +150,18 @@ let DATA = null, pasos = [];
 const css = v => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(v).trim();
 const fmtHora = d => d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 const fmtNum = n => n == null ? '—' : Number(n).toLocaleString('es-AR');
+
+// Compara el viaje de ahora contra el viaje habitual para este día y hora (historial de TomTom)
+function comparacion(u) {
+  if (u.indice_habitual == null) return '';
+  const ix = u.indice_habitual, extra = u.extra_habitual_min;
+  let txt, peso;
+  if (ix >= 1.1) { txt = `<b>+${Math.round(extra)} min</b> más que lo normal · ${ix.toLocaleString('es-AR')}× (${Math.round((ix - 1) * 100)}% más lento)`; peso = 'up'; }
+  else if (ix <= 0.9) { txt = `<b>${Math.round(extra)} min</b> · más rápido que lo normal`; peso = 'down'; }
+  else { txt = '<b>Normal</b> para este día y hora'; peso = 'eq'; }
+  const icon = peso === 'up' ? '▲' : peso === 'down' ? '▼' : '=';
+  return `<div class="vs vs-${peso}"><span class="vs-i">${icon}</span><span>${txt}<br><small>Viaje ahora ${fmtNum(u.viaje_min)} min · habitual ${fmtNum(u.habitual_min)} min · sin tráfico ${fmtNum(u.libre_min)} min</small></span></div>`;
+}
 
 function estado(min) {
   if (min >= UMBRAL.alta) return { label: 'Demora alta', color: '--critical',
@@ -188,10 +211,13 @@ function render() {
     const s = series[p], u = s[s.length - 1];
     if (!u) return '';
     const e = estado(u.demora_min);
-    return `<article class="card tile">
-      <div class="tile-name"><span class="swatch" style="background:var(${SERIES[i]})"></span>${p}</div>
+    const vs = comparacion(u);
+    return `<article class="card tile${p === PRINCIPAL ? ' principal' : ''}">
+      ${p === PRINCIPAL ? '<div class="tag">Principal · visita del Papa sáb. 7</div>' : ''}
+      <div class="tile-name"><span class="swatch" style="background:var(${col(p)})"></span>${p}</div>
       <div class="big">${Math.round(u.demora_min)}<small>min</small></div>
       <div class="status"><svg width="16" height="16" viewBox="0 0 16 16" style="color:var(${e.color})">${e.icon}</svg>${e.label}</div>
+      ${vs}
       <div class="meta">
         <div>Cola<b>${u.cola_m >= 1000 ? (u.cola_m/1000).toLocaleString('es-AR',{maximumFractionDigits:1}) + ' km' : fmtNum(u.cola_m) + ' m'}</b></div>
         <div>Autos en fila<b>~${fmtNum(u.autos_cola_est)}</b></div>
@@ -202,7 +228,7 @@ function render() {
   }).join('');
 
   document.getElementById('legend').innerHTML = pasos.map((p, i) =>
-    `<span><i style="background:var(${SERIES[i]})"></i>${p}</span>`).join('');
+    `<span><i style="background:var(${col(p)})"></i>${p}</span>`).join('');
 
   dibujarGrafico(series);
   dibujarTabla();
@@ -242,9 +268,9 @@ function dibujarGrafico(series) {
   pasos.forEach((p, i) => {
     const s = series[p]; if (!s.length) return;
     const d = s.map((pt, k) => (k ? 'L' : 'M') + x(+pt.t).toFixed(1) + ',' + y(pt.demora_min).toFixed(1)).join('');
-    g += `<path d="${d}" fill="none" stroke="var(${SERIES[i]})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    g += `<path d="${d}" fill="none" stroke="var(${col(p)})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
     const u = s[s.length - 1];
-    g += `<circle cx="${x(+u.t)}" cy="${y(u.demora_min)}" r="4" fill="var(${SERIES[i]})" stroke="var(--surface-1)" stroke-width="2"/>`;
+    g += `<circle cx="${x(+u.t)}" cy="${y(u.demora_min)}" r="4" fill="var(${col(p)})" stroke="var(--surface-1)" stroke-width="2"/>`;
     ends.push({ y: y(u.demora_min), label: p.split(' – ')[0], val: Math.round(u.demora_min), i });
   });
 
@@ -275,8 +301,8 @@ function dibujarGrafico(series) {
       let best = s[0];
       for (const pt of s) if (Math.abs(pt.t - tt) < Math.abs(best.t - tt)) best = pt;
       tx = x(+best.t); tShown = best.t;
-      dHtml += `<circle cx="${tx}" cy="${y(best.demora_min)}" r="4" fill="var(${SERIES[i]})" stroke="var(--surface-1)" stroke-width="2"/>`;
-      rows += `<div class="r"><span><span class="swatch" style="background:var(${SERIES[i]})"></span>${p}</span><b>${best.demora_min.toLocaleString('es-AR')} min</b></div>`;
+      dHtml += `<circle cx="${tx}" cy="${y(best.demora_min)}" r="4" fill="var(${col(p)})" stroke="var(--surface-1)" stroke-width="2"/>`;
+      rows += `<div class="r"><span><span class="swatch" style="background:var(${col(p)})"></span>${p}</span><b>${best.demora_min.toLocaleString('es-AR')} min</b></div>`;
     });
     xh.setAttribute('x1', tx); xh.setAttribute('x2', tx); xh.setAttribute('visibility', 'visible');
     dots.innerHTML = dHtml;
@@ -298,8 +324,8 @@ function dibujarGrafico(series) {
 function dibujarTabla() {
   const filas = [...DATA.mediciones].sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 300);
   document.getElementById('tableWrap').innerHTML = `<table><thead><tr>
-    <th>Hora</th><th>Paso</th><th>Demora (min)</th><th>Cola (m)</th><th>Autos en fila</th><th>Flujo (autos/h)</th></tr></thead><tbody>` +
-    filas.map(f => `<tr><td>${fmtHora(new Date(f.fecha))}</td><td>${f.paso}</td><td>${f.demora_min.toLocaleString('es-AR')}</td>
+    <th>Hora</th><th>Paso</th><th>Demora (min)</th><th>vs. normal</th><th>Cola (m)</th><th>Autos en fila</th><th>Flujo (autos/h)</th></tr></thead><tbody>` +
+    filas.map(f => `<tr><td>${fmtHora(new Date(f.fecha))}</td><td>${f.paso}</td><td>${f.demora_min.toLocaleString('es-AR')}</td><td>${f.extra_habitual_min == null ? '—' : (f.extra_habitual_min > 0 ? '+' : '') + f.extra_habitual_min.toLocaleString('es-AR') + ' min'}</td>
       <td>${fmtNum(f.cola_m)}</td><td>~${fmtNum(f.autos_cola_est)}</td><td>${f.flujo_autos_h_est ? '~' + fmtNum(f.flujo_autos_h_est) : '—'}</td></tr>`).join('') +
     '</tbody></table>';
 }
