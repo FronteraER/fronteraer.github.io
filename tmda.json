@@ -17,10 +17,22 @@
   "dist_ref_m": 28,
   "anio": 2017
  },
+ "RN 9 sur · desde Oncativo": {
+  "tmda": 12600.0,
+  "cod_ruta": "0009",
+  "dist_ref_m": 1971,
+  "anio": 2017
+ },
  "RN 19 · desde Río Primero": {
   "tmda": 7550.0,
   "cod_ruta": "0019",
   "dist_ref_m": 509,
+  "anio": 2017
+ },
+ "RN 9 norte · desde Jesús María": {
+  "tmda": 15500.0,
+  "cod_ruta": "0009",
+  "dist_ref_m": 1765,
   "anio": 2017
  },
  "RN 20 · desde Villa Carlos Paz": {
@@ -45,6 +57,12 @@
   "tmda": 24344.0,
   "cod_ruta": "0008",
   "dist_ref_m": 47,
+  "anio": 2017
+ },
+ "RN 5 · desde Mercedes": {
+  "tmda": 15560.0,
+  "cod_ruta": "0005",
+  "dist_ref_m": 1653,
   "anio": 2017
  },
  "RN 7 · desde San Andrés de Giles": {
