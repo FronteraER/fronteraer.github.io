@@ -72,7 +72,7 @@ for clave, g in geo.items():
         d = min(dist(ref, b) for b in tp)
         if best is None or d < best[0]:
             best = (d, v, p)
-    if best and best[0] <= 1500:
+    if best and best[0] <= 2500:
         d, v, p = best
         salida[nombre] = {"tmda": v, "cod_ruta": cod, "dist_ref_m": round(d), "anio": 2017}
         print(f"{nombre:40} TMDA {v:>8.0f}  (ruta {cod}, a {d:.0f} m del punto de referencia)")
